@@ -297,6 +297,37 @@ impl Transport {
             .await?;
         Ok(())
     }
+
+    /// Transfer the current queue from one zone to another.
+    pub async fn transfer_zone(
+        &self,
+        from_zone_or_output_id: &str,
+        to_zone_or_output_id: &str,
+    ) -> Result<(), ApiError> {
+        self.connection
+            .send_request(
+                "com.roonlabs.transport:2/transfer_zone",
+                Some(serde_json::json!({
+                    "from_zone_or_output_id": from_zone_or_output_id,
+                    "to_zone_or_output_id": to_zone_or_output_id
+                })),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Standby an output.
+    pub async fn standby(&self, output_id: &str) -> Result<(), ApiError> {
+        self.connection
+            .send_request(
+                "com.roonlabs.transport:2/standby",
+                Some(serde_json::json!({
+                    "output_id": output_id
+                })),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 fn parse_zone_event(status: &str, body: &serde_json::Value) -> Option<ZoneEvent> {

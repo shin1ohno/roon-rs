@@ -14,7 +14,7 @@ pub use error::ApiError;
 pub use event::RoonEvent;
 pub use self::core::Core;
 pub use output::{Output, SourceControl, Volume};
-pub use token::{FileTokenStore, MemoryTokenStore, TokenStore};
+pub use token::{FileStateStore, FileTokenStore, MemoryStateStore, MemoryTokenStore, StateStore, TokenStore};
 pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,
 };

@@ -2,7 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
-use roon_api::{MemoryTokenStore, RoonClientBuilder, RoonEvent, TokenStore};
+use roon_api::{MemoryTokenStore, RoonClientBuilder, RoonEvent, StateStore};
 
 fn build_moo_response(
     verb: &str,

@@ -5,7 +5,7 @@ use roon_moo::connection::{MooConnection, ServiceHandler};
 
 use crate::core::{Core, CoreInner};
 use crate::error::ApiError;
-use crate::token::TokenStore;
+use crate::token::StateStore;
 
 /// Extension registration info sent to Roon Core.
 #[derive(Debug, Clone)]
@@ -31,7 +31,7 @@ pub(crate) struct ExtensionInfo {
 pub(crate) async fn perform_handshake(
     url: &str,
     info: &ExtensionInfo,
-    token_store: &dyn TokenStore,
+    token_store: &dyn StateStore,
 ) -> Result<Core, ApiError> {
     // Build service handlers for provided services (ping + pairing)
     let service_handlers = build_service_handlers();

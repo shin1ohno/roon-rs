@@ -8,7 +8,7 @@ use crate::core::Core;
 use crate::error::ApiError;
 use crate::event::RoonEvent;
 use crate::registry::{self, ExtensionInfo};
-use crate::token::{MemoryTokenStore, TokenStore};
+use crate::token::{MemoryStateStore, StateStore};
 
 const BACKOFF_INITIAL: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(60);
@@ -21,7 +21,7 @@ pub struct RoonClientBuilder {
     publisher: String,
     email: String,
     website: Option<String>,
-    token_store: Option<Arc<dyn TokenStore>>,
+    token_store: Option<Arc<dyn StateStore>>,
     required_services: Vec<String>,
     optional_services: Vec<String>,
 }
@@ -54,8 +54,8 @@ impl RoonClientBuilder {
         self
     }
 
-    /// Provide a custom token store for persisting authentication tokens.
-    pub fn token_store(mut self, store: impl TokenStore) -> Self {
+    /// Provide a custom state store for persisting tokens and pairing state.
+    pub fn token_store(mut self, store: impl StateStore) -> Self {
         self.token_store = Some(Arc::new(store));
         self
     }
@@ -90,9 +90,9 @@ impl RoonClientBuilder {
 
     /// Build the `RoonClient`.
     pub fn build(self) -> Result<RoonClient, ApiError> {
-        let token_store: Arc<dyn TokenStore> = self
+        let token_store: Arc<dyn StateStore> = self
             .token_store
-            .unwrap_or_else(|| Arc::new(MemoryTokenStore::new()));
+            .unwrap_or_else(|| Arc::new(MemoryStateStore::new()));
 
         let (event_tx, _) = broadcast::channel::<RoonEvent>(32);
 
@@ -119,7 +119,7 @@ impl RoonClientBuilder {
 /// `start_discovery()` or `connect()` to begin interacting with Roon Core.
 pub struct RoonClient {
     info: ExtensionInfo,
-    token_store: Arc<dyn TokenStore>,
+    token_store: Arc<dyn StateStore>,
     event_tx: broadcast::Sender<RoonEvent>,
 }
 

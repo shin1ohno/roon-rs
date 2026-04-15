@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::Arc;
 
 use tokio::net::UdpSocket;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 use crate::{parse, serialize_query, SoodType, ROON_CORE_SERVICE_ID, SOOD_MULTICAST_IP, SOOD_PORT};
 
@@ -11,36 +12,27 @@ use crate::{parse, serialize_query, SoodType, ROON_CORE_SERVICE_ID, SOOD_MULTICA
 pub struct DiscoveredCore {
     /// Unique identifier for this Roon Core instance.
     pub core_id: String,
-    /// IP address to connect to.
+    /// IP address to connect to (localhost-corrected if applicable).
     pub host: IpAddr,
     /// TCP port for the MOO/WebSocket API endpoint.
     pub http_port: u16,
 }
 
 /// SOOD network discovery for Roon Cores.
-///
-/// Sends multicast/broadcast UDP queries on port 9003 and listens for
-/// responses from Roon Cores on the local network.
 pub struct SoodDiscovery {
-    /// Signal to stop the discovery task.
-    cancel_tx: tokio::sync::watch::Sender<bool>,
-    /// Handle to the background discovery task.
+    cancel_tx: watch::Sender<bool>,
+    paired_tx: watch::Sender<bool>,
     task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl SoodDiscovery {
-    /// Start SOOD discovery. Returns the discovery handle and a receiver for
-    /// discovered cores.
-    ///
-    /// The receiver yields `DiscoveredCore` each time a Roon Core responds to
-    /// a query. Duplicate responses for the same core may be emitted.
+    /// Start SOOD discovery.
     pub async fn start() -> Result<(Self, broadcast::Receiver<DiscoveredCore>), crate::SoodError> {
         let (core_tx, core_rx) = broadcast::channel::<DiscoveredCore>(16);
-        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let (cancel_tx, cancel_rx) = watch::channel(false);
+        let (paired_tx, paired_rx) = watch::channel(false);
 
-        // Bind receive socket on the SOOD port
         let recv_socket = bind_recv_socket().await?;
-        // Bind send socket on an ephemeral port
         let send_socket = bind_send_socket().await?;
 
         let task_handle = tokio::spawn(discovery_loop(
@@ -48,23 +40,22 @@ impl SoodDiscovery {
             send_socket,
             core_tx,
             cancel_rx,
+            paired_rx,
         ));
 
         Ok((
             SoodDiscovery {
                 cancel_tx,
+                paired_tx,
                 task_handle,
             },
             core_rx,
         ))
     }
 
-    /// Send an immediate discovery query (don't wait for the next scheduled tick).
-    pub fn query_now(&self) {
-        // The discovery loop will re-query on the next tick.
-        // For immediate query, we could use a channel, but the 10s interval
-        // is fast enough for most use cases. This is a placeholder for future
-        // enhancement.
+    /// Suppress periodic queries when paired (saves network traffic).
+    pub fn set_paired(&self, paired: bool) {
+        let _ = self.paired_tx.send(paired);
     }
 
     /// Stop discovery and release network resources.
@@ -95,7 +86,6 @@ async fn bind_recv_socket() -> Result<UdpSocket, crate::SoodError> {
         .bind(&addr.into())
         .map_err(|e| crate::SoodError::Io(e.to_string()))?;
 
-    // Join multicast group on all interfaces
     let multicast_addr: Ipv4Addr = SOOD_MULTICAST_IP
         .parse()
         .expect("hardcoded multicast IP is valid");
@@ -136,7 +126,6 @@ async fn bind_send_socket() -> Result<UdpSocket, crate::SoodError> {
     UdpSocket::from_std(std_socket).map_err(|e| crate::SoodError::Io(e.to_string()))
 }
 
-/// Build the query packet for Roon Core discovery.
 fn build_query_packet() -> Vec<u8> {
     let mut props = HashMap::new();
     props.insert(
@@ -150,22 +139,47 @@ fn build_query_packet() -> Vec<u8> {
     serialize_query(&props)
 }
 
-/// Main discovery loop: send queries periodically and process responses.
+/// Get all local IPv4 addresses for localhost detection.
+fn get_local_ipv4_addrs() -> HashSet<IpAddr> {
+    let mut addrs = HashSet::new();
+    addrs.insert(IpAddr::V4(Ipv4Addr::LOCALHOST));
+
+    // Read from /proc/net/fib_trie or fall back to parsing ip addr
+    if let Ok(output) = std::process::Command::new("hostname")
+        .arg("-I")
+        .output()
+    {
+        if let Ok(stdout) = std::str::from_utf8(&output.stdout) {
+            for part in stdout.split_whitespace() {
+                if let Ok(ip) = part.parse::<IpAddr>() {
+                    addrs.insert(ip);
+                }
+            }
+        }
+    }
+
+    addrs
+}
+
 async fn discovery_loop(
     recv_socket: UdpSocket,
     send_socket: UdpSocket,
     core_tx: broadcast::Sender<DiscoveredCore>,
-    mut cancel_rx: tokio::sync::watch::Receiver<bool>,
+    mut cancel_rx: watch::Receiver<bool>,
+    paired_rx: watch::Receiver<bool>,
 ) {
     let multicast_target: SocketAddr =
         SocketAddr::V4(SocketAddrV4::new(SOOD_MULTICAST_IP.parse().unwrap(), SOOD_PORT));
     let broadcast_target: SocketAddr =
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::BROADCAST, SOOD_PORT));
 
-    // Send initial query immediately
+    // Cache local addresses, refresh periodically
+    let local_addrs = Arc::new(tokio::sync::Mutex::new(get_local_ipv4_addrs()));
+
     send_query(&send_socket, &multicast_target, &broadcast_target).await;
 
     let mut scan_interval = tokio::time::interval(std::time::Duration::from_secs(10));
+    let mut iface_interval = tokio::time::interval(std::time::Duration::from_secs(5));
     let mut tick_count: u64 = 0;
     let mut recv_buf = vec![0u8; 65535];
     let mut send_buf = vec![0u8; 65535];
@@ -178,20 +192,35 @@ async fn discovery_loop(
                 }
             }
 
+            // Interface polling (every 5s)
+            _ = iface_interval.tick() => {
+                let new_addrs = get_local_ipv4_addrs();
+                let mut addrs = local_addrs.lock().await;
+                if *addrs != new_addrs {
+                    tracing::debug!("Network interfaces changed");
+                    *addrs = new_addrs;
+                    // Trigger immediate query on interface change
+                    send_query(&send_socket, &multicast_target, &broadcast_target).await;
+                }
+            }
+
             // Periodic query
             _ = scan_interval.tick() => {
                 tick_count += 1;
-                // Adaptive frequency: every tick for first 60s, then every 6th tick
+                // Skip queries when paired
+                if *paired_rx.borrow() {
+                    continue;
+                }
                 if tick_count <= 6 || tick_count.is_multiple_of(6) {
                     send_query(&send_socket, &multicast_target, &broadcast_target).await;
                 }
             }
 
-            // Incoming on recv_socket (multicast/broadcast responses)
             result = recv_socket.recv_from(&mut recv_buf) => {
                 match result {
                     Ok((len, from)) => {
-                        if let Some(core) = process_response(&recv_buf[..len], from) {
+                        let addrs = local_addrs.lock().await;
+                        if let Some(core) = process_response(&recv_buf[..len], from, &addrs) {
                             let _ = core_tx.send(core);
                         }
                     }
@@ -201,11 +230,11 @@ async fn discovery_loop(
                 }
             }
 
-            // Incoming on send_socket (unicast responses to our queries)
             result = send_socket.recv_from(&mut send_buf) => {
                 match result {
                     Ok((len, from)) => {
-                        if let Some(core) = process_response(&send_buf[..len], from) {
+                        let addrs = local_addrs.lock().await;
+                        if let Some(core) = process_response(&send_buf[..len], from, &addrs) {
                             let _ = core_tx.send(core);
                         }
                     }
@@ -218,7 +247,6 @@ async fn discovery_loop(
     }
 }
 
-/// Send a discovery query to multicast and broadcast addresses.
 async fn send_query(
     send_socket: &UdpSocket,
     multicast_target: &SocketAddr,
@@ -234,8 +262,12 @@ async fn send_query(
     }
 }
 
-/// Process a received SOOD response and extract core information.
-fn process_response(buf: &[u8], from: SocketAddr) -> Option<DiscoveredCore> {
+/// Process a received SOOD response, applying localhost detection.
+fn process_response(
+    buf: &[u8],
+    from: SocketAddr,
+    local_addrs: &HashSet<IpAddr>,
+) -> Option<DiscoveredCore> {
     let msg = match parse(buf, from) {
         Ok(m) => m,
         Err(e) => {
@@ -244,19 +276,25 @@ fn process_response(buf: &[u8], from: SocketAddr) -> Option<DiscoveredCore> {
         }
     };
 
-    // Only process Response messages
     if msg.msg_type != SoodType::Response {
         return None;
     }
 
-    // Extract required fields
     let core_id = msg.props.get("unique_id")?.as_ref()?.clone();
     let http_port_str = msg.props.get("http_port")?.as_ref()?;
     let http_port: u16 = http_port_str.parse().ok()?;
 
+    // Localhost detection: if the response IP is one of our own addresses,
+    // connect to 127.0.0.1 instead (avoids loopback issues)
+    let host = if local_addrs.contains(&msg.from.ip()) {
+        IpAddr::V4(Ipv4Addr::LOCALHOST)
+    } else {
+        msg.from.ip()
+    };
+
     Some(DiscoveredCore {
         core_id,
-        host: msg.from.ip(),
+        host,
         http_port,
     })
 }
@@ -267,7 +305,6 @@ mod tests {
 
     #[test]
     fn test_process_response_valid() {
-        // Build a valid SOOD response packet
         let mut props = HashMap::new();
         props.insert(
             "service_id".to_string(),
@@ -283,7 +320,6 @@ mod tests {
             Some("tid-placeholder".to_string()),
         );
 
-        // Build raw bytes manually: SOOD\x02R + TLV properties
         let mut buf = Vec::new();
         buf.extend_from_slice(b"SOOD\x02R");
         for (name, value) in &props {
@@ -301,28 +337,50 @@ mod tests {
         }
 
         let from: SocketAddr = "192.168.1.100:9003".parse().unwrap();
-        let core = process_response(&buf, from).unwrap();
+        let empty_local = HashSet::new();
+        let core = process_response(&buf, from, &empty_local).unwrap();
         assert_eq!(core.core_id, "test-core-123");
         assert_eq!(core.http_port, 9100);
         assert_eq!(core.host, IpAddr::V4("192.168.1.100".parse().unwrap()));
     }
 
     #[test]
-    fn test_process_response_ignores_queries() {
-        // Build a query packet (type = Q)
-        let mut buf = Vec::new();
-        buf.extend_from_slice(b"SOOD\x02Q");
+    fn test_process_response_localhost_detection() {
+        let mut props = HashMap::new();
+        props.insert("unique_id".to_string(), Some("local-core".to_string()));
+        props.insert("http_port".to_string(), Some("9330".to_string()));
 
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"SOOD\x02R");
+        for (name, value) in &props {
+            buf.push(name.len() as u8);
+            buf.extend_from_slice(name.as_bytes());
+            if let Some(v) = value {
+                buf.extend_from_slice(&(v.len() as u16).to_be_bytes());
+                buf.extend_from_slice(v.as_bytes());
+            }
+        }
+
+        let from: SocketAddr = "192.168.1.20:9003".parse().unwrap();
+        let mut local = HashSet::new();
+        local.insert(IpAddr::V4("192.168.1.20".parse().unwrap()));
+
+        let core = process_response(&buf, from, &local).unwrap();
+        assert_eq!(core.host, IpAddr::V4(Ipv4Addr::LOCALHOST));
+    }
+
+    #[test]
+    fn test_process_response_ignores_queries() {
+        let buf = b"SOOD\x02Q";
         let from: SocketAddr = "192.168.1.100:9003".parse().unwrap();
-        assert!(process_response(&buf, from).is_none());
+        assert!(process_response(buf, from, &HashSet::new()).is_none());
     }
 
     #[test]
     fn test_process_response_missing_fields() {
-        // Response with no properties
         let buf = b"SOOD\x02R";
         let from: SocketAddr = "192.168.1.100:9003".parse().unwrap();
-        assert!(process_response(buf, from).is_none());
+        assert!(process_response(buf, from, &HashSet::new()).is_none());
     }
 
     #[test]
@@ -340,7 +398,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_loopback_send_recv() {
-        // Bind a UDP socket to receive our own query
         let recv = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let recv_addr = recv.local_addr().unwrap();
 
@@ -361,5 +418,11 @@ mod tests {
 
         let msg = parse(&buf[..len], from).unwrap();
         assert_eq!(msg.msg_type, SoodType::Query);
+    }
+
+    #[test]
+    fn test_get_local_ipv4_addrs() {
+        let addrs = get_local_ipv4_addrs();
+        assert!(addrs.contains(&IpAddr::V4(Ipv4Addr::LOCALHOST)));
     }
 }

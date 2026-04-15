@@ -1,3 +1,4 @@
+pub mod browse;
 mod client;
 pub mod core;
 mod error;
@@ -18,3 +19,4 @@ pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,
 };
 pub use zone::{NowPlaying, PlayState, Zone, ZoneSeek, ZoneSettings};
+pub use browse::{Browse, BrowseItem, BrowseList, BrowseOptions, BrowseResult, LoadOptions, LoadResult};

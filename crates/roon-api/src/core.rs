@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use roon_moo::connection::MooConnection;
 
+use crate::browse::Browse;
 use crate::transport::Transport;
 
 /// A handle to a connected and registered Roon Core.
@@ -44,5 +45,10 @@ impl Core {
     /// Get the Transport service for zone subscription and playback control.
     pub fn transport(&self) -> Transport {
         Transport::new(self.inner.connection.clone())
+    }
+
+    /// Get the Browse service for navigating the music library.
+    pub fn browse(&self) -> Browse {
+        Browse::new(self.inner.connection.clone())
     }
 }

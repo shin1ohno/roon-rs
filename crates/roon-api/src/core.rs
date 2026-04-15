@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use roon_moo::connection::MooConnection;
 
+use crate::transport::Transport;
+
 /// A handle to a connected and registered Roon Core.
 ///
 /// Provides access to services (transport, browse) available on the core.
@@ -16,7 +18,6 @@ pub(crate) struct CoreInner {
     pub(crate) core_id: String,
     pub(crate) display_name: String,
     pub(crate) display_version: String,
-    // Used by Transport/Browse services in Phase 5+
     #[allow(dead_code)]
     pub(crate) token: Option<String>,
     #[allow(dead_code)]
@@ -40,9 +41,8 @@ impl Core {
         &self.inner.display_version
     }
 
-    /// The MOO connection to this core (for service use).
-    #[allow(dead_code)]
-    pub(crate) fn connection(&self) -> &Arc<MooConnection> {
-        &self.inner.connection
+    /// Get the Transport service for zone subscription and playback control.
+    pub fn transport(&self) -> Transport {
+        Transport::new(self.inner.connection.clone())
     }
 }

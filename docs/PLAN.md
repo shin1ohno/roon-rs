@@ -43,10 +43,11 @@ roon-rs/
 
 ### Phase 2: roon-moo Connection Layer
 
-- [ ] MooConnection (WebSocket connect, send_request, subscribe)
-- [ ] Subscription type (mpsc::Receiver wrapping Stream, CONTINUE*/COMPLETE)
-- [ ] Heartbeat (10s ping/pong, timeout disconnect)
-- [ ] Integration tests with mock WebSocket server
+- [x] MooConnection (WebSocket connect, send_request, subscribe)
+- [x] Subscription type (mpsc::Receiver wrapping Stream, CONTINUE*/COMPLETE)
+- [x] Heartbeat (10s ping/pong, timeout disconnect)
+- [x] Bidirectional dispatch (incoming REQUESTs routed to service handlers)
+- [x] Integration tests (6) with mock WebSocket server
 
 ### Phase 3: roon-sood Discovery Runtime
 
@@ -58,14 +59,15 @@ roon-rs/
 
 ### Phase 4: roon-api SDK — Core + Registry
 
-- [ ] RoonClientBuilder + RoonClient
-- [ ] Core type (core_id, display_name, service accessors)
-- [ ] RoonEvent enum (CoreFound, CorePaired, CoreUnpaired, CoreLost)
-- [ ] Registry handshake (info → register → Registered)
-- [ ] TokenStore trait + FileTokenStore + MemoryTokenStore
-- [ ] Pairing service (provided to Roon Core)
-- [ ] Ping service
-- [ ] Connection manager (state machine, reconnection)
+- [x] RoonClientBuilder + RoonClient
+- [x] Core type (core_id, display_name, service accessors)
+- [x] RoonEvent enum (CoreFound, CorePaired, CoreUnpaired, CoreLost)
+- [x] Registry handshake (info → register → Registered)
+- [x] TokenStore trait + FileTokenStore + MemoryTokenStore
+- [x] Pairing service (provided to Roon Core)
+- [x] Ping service
+- [x] Integration tests (4) with mock Roon Core
+- [ ] Connection manager (state machine, reconnection) — deferred to Phase 8
 
 ### Phase 5: roon-api SDK — Transport Service
 

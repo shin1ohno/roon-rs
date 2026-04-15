@@ -95,11 +95,11 @@ roon-rs/
 
 ### Phase 8: Hardening
 
-- [ ] Reconnection logic (exponential backoff)
-- [ ] Seek position throttling
+- [x] Reconnection logic (exponential backoff, 1s→60s)
+- [x] Seek position throttling (1/s in roon-hub)
 - [ ] RPi memory profiling
 - [ ] CI pipeline (aarch64 cross-compile)
-- [ ] Systemd service file
+- [x] Systemd service file
 
 ## Technical Decisions
 

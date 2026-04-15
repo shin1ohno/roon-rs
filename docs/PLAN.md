@@ -87,11 +87,11 @@ roon-rs/
 
 ### Phase 7: Hub Binary (roon-hub)
 
-- [ ] TOML config + env var overrides
-- [ ] MQTT bridge (rumqttc)
-- [ ] Zone state manager + routing table
-- [ ] Command router (device event → zone → transport command)
-- [ ] Graceful shutdown
+- [x] TOML config + env var overrides (ROON_HUB_*)
+- [x] MQTT bridge (rumqttc) — publish zone state, subscribe commands
+- [x] Command router (MQTT command → transport action)
+- [x] Graceful shutdown (SIGINT)
+- [x] Example config (roon-hub.toml.example)
 
 ### Phase 8: Hardening
 

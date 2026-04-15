@@ -1,6 +1,6 @@
 # roon-rs
 
-Rust reimplementation of Roon audio system's proprietary protocols (SOOD discovery + MOO RPC) with a Hub-and-Spoke IoT integration architecture.
+Rust SDK for Roon audio system's proprietary protocols (SOOD discovery + MOO RPC). `roon-api` is a standalone library any Rust program can use to control Roon. `roon-hub` is one consumer that bridges Roon to MQTT.
 
 ## Project Navigation
 
@@ -20,7 +20,7 @@ cargo test --workspace
 
 - `crates/roon-sood` — SOOD UDP discovery protocol
 - `crates/roon-moo` — MOO WebSocket RPC protocol
-- `crates/roon-api` — High-level Roon API (registry, transport, browse)
+- `crates/roon-api` — Roon SDK (discovery, registration, transport, browse)
 - `crates/roon-hub` — Hub binary (MQTT bridge + device routing)
 
 ## Conventions

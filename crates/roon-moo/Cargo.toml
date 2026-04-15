@@ -2,3 +2,12 @@
 name = "roon-moo"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+bytes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"

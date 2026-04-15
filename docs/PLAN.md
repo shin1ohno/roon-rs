@@ -2,69 +2,95 @@
 
 ## Overview
 
-Rust reimplementation of Roon's proprietary protocols (SOOD/MOO) with a Hub-and-Spoke architecture for IoT device integration via MQTT.
+Rust SDK for Roon audio system's proprietary protocols (SOOD discovery + MOO RPC). Any Rust program can add `roon-api` as a dependency to discover, connect to, and control Roon Core. The Hub binary (`roon-hub`) is one consumer that bridges Roon to MQTT for IoT device integration.
 
 ## Architecture
 
 ```
-Roon Core <-WebSocket (MOO)-> Rust Hub (single process)
-                                |
-                   Zone/Group State (in-memory, typed)
-                   Routing Table: Device -> Zone
-                                |
-                         MQTT client (1 connection)
-                                |
-              +-----------------+-----------------+
-           Adapter A         Adapter B          Adapter C
-           (Nuimo/BLE)      (StreamDeck/USB)   (HueDial/HTTP)
-```
+Dependency graph:  roon-hub → roon-api → { roon-moo, roon-sood }
 
-Zone switching = routing table update in memory. No connection teardown.
+Any Rust program:
+  use roon_api::RoonClient;
+  let client = RoonClientBuilder::new(...).require_transport().build()?;
+  client.start_discovery().await?;
+  // events() → CorePaired → core.transport().control(zone, Play)
+
+Hub binary (one consumer of the SDK):
+  roon-api → connect to Roon → publish zone state to MQTT → subscribe device commands
+```
 
 ## Workspace Structure
 
 ```
 roon-rs/
   crates/
-    roon-sood/    SOOD UDP discovery protocol
-    roon-moo/     MOO WebSocket RPC protocol
-    roon-api/     Roon API (registry, pairing, transport, browse)
-    roon-hub/     Hub binary (MQTT bridge + routing)
+    roon-sood/    SOOD UDP discovery protocol (parser, serializer, network discovery)
+    roon-moo/     MOO WebSocket RPC protocol (parser, serializer, connection layer)
+    roon-api/     Roon SDK (discovery, registration, transport, browse)
+    roon-hub/     Hub binary (MQTT bridge + device routing)
 ```
 
 ## Progress
 
-### Phase 1: Protocol Crates (roon-sood + roon-moo)
+### Phase 1: roon-moo Wire Format
 
-- [x] Workspace initialization
-- [x] SOOD parser + serializer
+- [x] MooMessage, MooVerb, MooBody types
+- [x] MOO parser (parse request/response/continue, headers, JSON/binary body)
+- [x] MOO serializer (wire format output)
+- [x] MooError enum with thiserror
+- [x] Unit tests (20) + proptest round-trip (2)
+- [x] Clippy clean
+
+### Phase 2: roon-moo Connection Layer
+
+- [ ] MooConnection (WebSocket connect, send_request, subscribe)
+- [ ] Subscription type (mpsc::Receiver wrapping Stream, CONTINUE*/COMPLETE)
+- [ ] Heartbeat (10s ping/pong, timeout disconnect)
+- [ ] Integration tests with mock WebSocket server
+
+### Phase 3: roon-sood Discovery Runtime
+
+- [x] SOOD parser + serializer (complete)
 - [x] SOOD unit tests + proptest round-trip
-- [ ] SOOD discovery (multicast sockets, interface polling)
-- [ ] MOO parser + serializer
-- [ ] MOO unit tests
-- [ ] MOO connection (WebSocket + heartbeat)
-- [ ] MOO subscription helper
+- [ ] SoodDiscovery (multicast sockets, interface polling)
+- [ ] DiscoveredCore broadcast channel
+- [ ] Adaptive scan interval (10s → 60s)
 
-### Phase 2: Roon API (roon-api)
+### Phase 4: roon-api SDK — Core + Registry
 
-- [ ] Registry handshake (info -> register -> Registered)
-- [ ] Token persistence
+- [ ] RoonClientBuilder + RoonClient
+- [ ] Core type (core_id, display_name, service accessors)
+- [ ] RoonEvent enum (CoreFound, CorePaired, CoreUnpaired, CoreLost)
+- [ ] Registry handshake (info → register → Registered)
+- [ ] TokenStore trait + FileTokenStore + MemoryTokenStore
 - [ ] Pairing service (provided to Roon Core)
 - [ ] Ping service
-- [ ] Transport subscription (subscribe_zones)
-- [ ] Transport control commands (play, pause, stop, next, previous)
-- [ ] **Milestone: CLI zone listing**
+- [ ] Connection manager (state machine, reconnection)
 
-### Phase 3: Hub Binary (roon-hub)
+### Phase 5: roon-api SDK — Transport Service
 
-- [ ] TOML config + logging
+- [ ] Transport (subscribe_zones, subscribe_outputs)
+- [ ] Zone, Output, NowPlaying, PlayState types
+- [ ] Control commands (play, pause, stop, next, previous, seek)
+- [ ] Volume control (change_volume, mute)
+- [ ] Zone settings (shuffle, loop, auto_radio)
+- [ ] Output grouping (group, ungroup)
+- [ ] **Milestone: CLI zone listing + playback control with real Roon Core**
+
+### Phase 6: roon-api SDK — Browse Service
+
+- [ ] Browse (browse, load)
+- [ ] BrowseResult, BrowseList, BrowseItem types
+
+### Phase 7: Hub Binary (roon-hub)
+
+- [ ] TOML config + env var overrides
 - [ ] MQTT bridge (rumqttc)
-- [ ] Zone state manager
-- [ ] Routing table
-- [ ] Command router (device event -> zone -> transport command)
-- [ ] Graceful shutdown (CancellationToken)
+- [ ] Zone state manager + routing table
+- [ ] Command router (device event → zone → transport command)
+- [ ] Graceful shutdown
 
-### Phase 4: Hardening
+### Phase 8: Hardening
 
 - [ ] Reconnection logic (exponential backoff)
 - [ ] Seek position throttling
@@ -76,10 +102,14 @@ roon-rs/
 
 | Decision | Choice | Rationale |
 |---|---|---|
+| Event model | broadcast::Receiver\<RoonEvent\> | Multi-consumer, clone-able, natural for async Rust |
+| Subscription | impl Stream\<Item = ZoneEvent\> (mpsc wrapping) | CONTINUE → send, COMPLETE → close sender |
+| Token persistence | TokenStore trait + FileTokenStore/MemoryTokenStore | Testable + user-customizable |
+| Bidirectional dispatch | Connection task routes incoming REQUESTs to service handlers | Pairing/Ping are extension-provided services |
+| Connection lifecycle | State machine (Disconnected→Discovering→Connecting→Registering→Connected) | Explicit select! loop management |
 | MOO response model | mpsc channel per request_id | Natural fit for CONTINUE*/COMPLETE |
 | Error handling | thiserror (libs), anyhow (bin) | Structured errors + top-level convenience |
 | Config | TOML + env vars | Rust standard + container-friendly |
-| State sharing | Arc<RwLock<ZoneState>> | Low contention (1 writer, N readers) |
 | Hub-Adapter comms | MQTT | Language-agnostic, retain/LWT, distributed hosts |
 
 ## Protocol References

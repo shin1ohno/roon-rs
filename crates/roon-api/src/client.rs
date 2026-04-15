@@ -1,6 +1,7 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 
 use crate::core::Core;
 use crate::error::ApiError;
@@ -139,7 +140,18 @@ impl RoonClient {
         let token_store = self.token_store.clone();
 
         tokio::spawn(async move {
+            let connected_cores: Arc<Mutex<HashSet<String>>> =
+                Arc::new(Mutex::new(HashSet::new()));
+
             while let Ok(discovered) = core_rx.recv().await {
+                // Skip cores we've already connected to
+                {
+                    let cores = connected_cores.lock().await;
+                    if cores.contains(&discovered.core_id) {
+                        continue;
+                    }
+                }
+
                 let url = format!("ws://{}:{}/api", discovered.host, discovered.http_port);
 
                 let _ = event_tx.send(RoonEvent::CoreFound {
@@ -149,6 +161,10 @@ impl RoonClient {
 
                 match registry::perform_handshake(&url, &info, &*token_store).await {
                     Ok(core) => {
+                        connected_cores
+                            .lock()
+                            .await
+                            .insert(discovered.core_id.clone());
                         let _ = event_tx.send(RoonEvent::CorePaired(core));
                     }
                     Err(e) => {

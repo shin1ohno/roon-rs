@@ -26,4 +26,8 @@ pub enum MooError {
     MalformedHeader(String),
     #[error("invalid JSON body: {0}")]
     InvalidJson(#[from] serde_json::Error),
+    #[error("WebSocket error: {0}")]
+    WebSocket(String),
+    #[error("connection closed")]
+    ConnectionClosed,
 }

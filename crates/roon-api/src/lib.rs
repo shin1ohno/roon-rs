@@ -4,6 +4,7 @@ pub mod core;
 mod error;
 mod event;
 pub mod output;
+pub mod pairing;
 pub(crate) mod registry;
 pub mod token;
 pub mod transport;
@@ -14,6 +15,7 @@ pub use error::ApiError;
 pub use event::RoonEvent;
 pub use self::core::Core;
 pub use output::{Output, SourceControl, Volume};
+pub use pairing::PairingState;
 pub use token::{FileStateStore, FileTokenStore, MemoryStateStore, MemoryTokenStore, StateStore, TokenStore};
 pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,

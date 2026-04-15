@@ -7,6 +7,7 @@ use tokio::sync::{broadcast, Mutex};
 use crate::core::Core;
 use crate::error::ApiError;
 use crate::event::RoonEvent;
+use crate::pairing::PairingState;
 use crate::registry::{self, ExtensionInfo};
 use crate::token::{MemoryStateStore, StateStore};
 
@@ -24,6 +25,7 @@ pub struct RoonClientBuilder {
     token_store: Option<Arc<dyn StateStore>>,
     required_services: Vec<String>,
     optional_services: Vec<String>,
+    provided_services: Vec<String>,
 }
 
 impl RoonClientBuilder {
@@ -45,6 +47,7 @@ impl RoonClientBuilder {
             token_store: None,
             required_services: Vec::new(),
             optional_services: Vec::new(),
+            provided_services: Vec::new(),
         }
     }
 
@@ -88,12 +91,19 @@ impl RoonClientBuilder {
         self
     }
 
+    /// Register an additional provided service name.
+    pub fn provide_service(mut self, service_name: &str) -> Self {
+        self.provided_services.push(service_name.to_string());
+        self
+    }
+
     /// Build the `RoonClient`.
     pub fn build(self) -> Result<RoonClient, ApiError> {
-        let token_store: Arc<dyn StateStore> = self
+        let store: Arc<dyn StateStore> = self
             .token_store
             .unwrap_or_else(|| Arc::new(MemoryStateStore::new()));
 
+        let pairing = PairingState::new(&*store);
         let (event_tx, _) = broadcast::channel::<RoonEvent>(32);
 
         Ok(RoonClient {
@@ -106,44 +116,55 @@ impl RoonClientBuilder {
                 website: self.website,
                 required_services: self.required_services,
                 optional_services: self.optional_services,
+                provided_services: self.provided_services,
             },
-            token_store,
+            store,
+            pairing,
             event_tx,
         })
     }
 }
 
 /// The main Roon SDK client.
-///
-/// Use `RoonClientBuilder` to create an instance, then call
-/// `start_discovery()` or `connect()` to begin interacting with Roon Core.
 pub struct RoonClient {
     info: ExtensionInfo,
-    token_store: Arc<dyn StateStore>,
+    store: Arc<dyn StateStore>,
+    pairing: PairingState,
     event_tx: broadcast::Sender<RoonEvent>,
 }
 
 impl RoonClient {
     /// Subscribe to SDK lifecycle events.
-    ///
-    /// Returns a receiver that yields `RoonEvent`s such as `CoreFound`,
-    /// `CorePaired`, `CoreUnpaired`, and `CoreLost`.
     pub fn events(&self) -> broadcast::Receiver<RoonEvent> {
         self.event_tx.subscribe()
     }
 
+    /// Access the pairing state (e.g., to check paired_core_id).
+    pub fn pairing(&self) -> &PairingState {
+        &self.pairing
+    }
+
     /// Start SOOD-based discovery of Roon Cores on the local network.
     ///
-    /// Discovered cores are automatically connected to and registered with.
     /// If a connection is lost, the core is removed from the connected set
     /// and will be reconnected on the next discovery response.
-    /// Events are emitted via the `events()` channel.
     pub async fn start_discovery(&self) -> Result<(), ApiError> {
         let (discovery, mut core_rx) = roon_sood::SoodDiscovery::start().await?;
 
         let info = self.info.clone();
         let event_tx = self.event_tx.clone();
-        let token_store = self.token_store.clone();
+        let store = self.store.clone();
+        let pairing = self.pairing.clone();
+
+        // Set up pairing change callback to emit events
+        let event_tx_pair = event_tx.clone();
+        pairing
+            .on_pair_change(move |old, _new| {
+                if let Some(old_id) = old {
+                    let _ = event_tx_pair.send(RoonEvent::CoreUnpaired { core_id: old_id });
+                }
+            })
+            .await;
 
         tokio::spawn(async move {
             let connected_cores: Arc<Mutex<HashSet<String>>> =
@@ -164,12 +185,16 @@ impl RoonClient {
                     display_name: String::new(),
                 });
 
-                match registry::perform_handshake(&url, &info, &*token_store).await {
+                match registry::perform_handshake(&url, &info, &store, &pairing).await {
                     Ok(core) => {
                         let core_id = discovered.core_id.clone();
                         connected_cores.lock().await.insert(core_id.clone());
 
-                        // Monitor connection health — remove from set on disconnect
+                        // Auto-pair with first core if not already paired
+                        if pairing.paired_core_id().await.is_none() {
+                            pairing.pair_with(&core_id, &*store).await;
+                        }
+
                         let cores_ref = connected_cores.clone();
                         let event_tx_ref = event_tx.clone();
                         let core_ref = core.clone();
@@ -179,10 +204,7 @@ impl RoonClient {
                             let _ = event_tx_ref.send(RoonEvent::CoreLost {
                                 core_id: core_id.clone(),
                             });
-                            tracing::info!(
-                                "Core {} disconnected, will reconnect on next discovery",
-                                core_id
-                            );
+                            tracing::info!("Core {} disconnected", core_id);
                         });
 
                         let _ = event_tx.send(RoonEvent::CorePaired(core));
@@ -199,18 +221,23 @@ impl RoonClient {
     }
 
     /// Connect directly to a known Roon Core with automatic reconnection.
-    ///
-    /// On connection loss, retries with exponential backoff (1s → 60s max).
-    /// Emits `CoreLost` on disconnect and `CorePaired` on reconnect.
     pub async fn connect(&self, host: &str, port: u16) -> Result<Core, ApiError> {
         let url = format!("ws://{}:{}/api", host, port);
-        let core = registry::perform_handshake(&url, &self.info, &*self.token_store).await?;
+        let core =
+            registry::perform_handshake(&url, &self.info, &self.store, &self.pairing).await?;
+
+        // Auto-pair
+        if self.pairing.paired_core_id().await.is_none() {
+            self.pairing.pair_with(core.core_id(), &*self.store).await;
+        }
+
         let _ = self.event_tx.send(RoonEvent::CorePaired(core.clone()));
 
-        // Spawn reconnection loop
+        // Reconnection loop
         let url = url.clone();
         let info = self.info.clone();
-        let token_store = self.token_store.clone();
+        let store = self.store.clone();
+        let pairing = self.pairing.clone();
         let event_tx = self.event_tx.clone();
         let initial_core = core.clone();
 
@@ -224,25 +251,17 @@ impl RoonClient {
 
             let mut backoff = BACKOFF_INITIAL;
             loop {
-                tracing::info!(
-                    "Reconnecting to {} in {:?}...",
-                    url,
-                    backoff
-                );
+                tracing::info!("Reconnecting to {} in {:?}...", url, backoff);
                 tokio::time::sleep(backoff).await;
 
-                match registry::perform_handshake(&url, &info, &*token_store).await {
+                match registry::perform_handshake(&url, &info, &store, &pairing).await {
                     Ok(new_core) => {
                         tracing::info!("Reconnected to core {}", new_core.core_id());
                         let _ = event_tx.send(RoonEvent::CorePaired(new_core.clone()));
-
-                        // Monitor again
                         monitor_connection(&new_core).await;
                         let _ = event_tx.send(RoonEvent::CoreLost {
                             core_id: new_core.core_id().to_string(),
                         });
-
-                        // Reset backoff on successful reconnection
                         backoff = BACKOFF_INITIAL;
                     }
                     Err(e) => {
@@ -255,9 +274,28 @@ impl RoonClient {
 
         Ok(core)
     }
+
+    /// Connect using a one-time token (skips discovery and info request).
+    pub async fn connect_with_token(
+        &self,
+        host: &str,
+        port: u16,
+        token: &str,
+    ) -> Result<Core, ApiError> {
+        let url = format!("ws://{}:{}/api", host, port);
+        let core = registry::perform_handshake_with_token(
+            &url,
+            &self.info,
+            token,
+            &self.store,
+            &self.pairing,
+        )
+        .await?;
+        let _ = self.event_tx.send(RoonEvent::CorePaired(core.clone()));
+        Ok(core)
+    }
 }
 
-/// Wait until the connection to a core is no longer alive.
 async fn monitor_connection(core: &Core) {
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;

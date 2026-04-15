@@ -101,6 +101,19 @@ roon-rs/
 - [ ] CI pipeline (aarch64 cross-compile)
 - [x] Systemd service file
 
+### Phase 9: Feature Parity with Node.js Reference
+
+- [x] Transport: convenience_switch, toggle_standby, pause_all, get_zones, get_outputs
+- [x] StateStore: paired_core_id persistence with legacy format migration
+- [x] Pairing state machine: pair/unpair with subscriber notification + auto-pair
+- [x] connect_with_token: one-time token registration (skips info request)
+- [x] Discovery: localhost detection, interface polling (5s), paired query suppression
+- [x] Status service (com.roonlabs.status:1): set_status with subscriber broadcast
+- [x] Image service: get_image via HTTP, image_url builder
+- [x] Volume Control service (com.roonlabs.volume:1): set_volume, set_mute callbacks
+- [x] Source Control service (com.roonlabs.source_control:1): standby, convenience_switch callbacks
+- [x] Builder: provide_service for user-defined provided services
+
 ## Technical Decisions
 
 | Decision | Choice | Rationale |

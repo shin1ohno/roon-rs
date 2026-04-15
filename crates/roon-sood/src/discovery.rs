@@ -167,7 +167,8 @@ async fn discovery_loop(
 
     let mut scan_interval = tokio::time::interval(std::time::Duration::from_secs(10));
     let mut tick_count: u64 = 0;
-    let mut buf = vec![0u8; 65535];
+    let mut recv_buf = vec![0u8; 65535];
+    let mut send_buf = vec![0u8; 65535];
 
     loop {
         tokio::select! {
@@ -186,16 +187,30 @@ async fn discovery_loop(
                 }
             }
 
-            // Incoming responses
-            result = recv_socket.recv_from(&mut buf) => {
+            // Incoming on recv_socket (multicast/broadcast responses)
+            result = recv_socket.recv_from(&mut recv_buf) => {
                 match result {
                     Ok((len, from)) => {
-                        if let Some(core) = process_response(&buf[..len], from) {
+                        if let Some(core) = process_response(&recv_buf[..len], from) {
                             let _ = core_tx.send(core);
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("SOOD recv error: {}", e);
+                        tracing::warn!("SOOD recv error (recv_socket): {}", e);
+                    }
+                }
+            }
+
+            // Incoming on send_socket (unicast responses to our queries)
+            result = send_socket.recv_from(&mut send_buf) => {
+                match result {
+                    Ok((len, from)) => {
+                        if let Some(core) = process_response(&send_buf[..len], from) {
+                            let _ = core_tx.send(core);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("SOOD recv error (send_socket): {}", e);
                     }
                 }
             }

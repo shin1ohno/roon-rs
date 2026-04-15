@@ -1,0 +1,28 @@
+# roon-hub configuration
+# Copy to roon-hub.toml and adjust as needed.
+# All values can be overridden with ROON_HUB_* env vars.
+
+[roon]
+extension_id = "com.roon-rs.hub"
+display_name = "roon-hub"
+publisher = "roon-rs"
+email = "dev@example.com"
+token_path = "tokens.json"
+
+# Uncomment to skip discovery and connect directly:
+# host = "192.168.1.20"
+# port = 9330
+
+[mqtt]
+host = "localhost"
+port = 1883
+client_id = "roon-hub"
+topic_prefix = "roon"
+
+# MQTT topic structure:
+#   roon/zones              — JSON array of {zone_id, display_name, state}
+#   roon/zone/{zone_id}     — full Zone JSON (retained)
+#   roon/command/control     — {"zone_or_output_id": "...", "action": "play|pause|stop|next|previous"}
+#   roon/command/seek        — {"zone_or_output_id": "...", "how": "relative|absolute", "seconds": 30}
+#   roon/command/volume      — {"output_id": "...", "how": "absolute|relative|relative_step", "value": 50}
+#   roon/command/mute        — {"output_id": "...", "action": "mute|unmute"}

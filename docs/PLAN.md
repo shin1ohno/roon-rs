@@ -53,9 +53,9 @@ roon-rs/
 
 - [x] SOOD parser + serializer (complete)
 - [x] SOOD unit tests + proptest round-trip
-- [ ] SoodDiscovery (multicast sockets, interface polling)
-- [ ] DiscoveredCore broadcast channel
-- [ ] Adaptive scan interval (10s → 60s)
+- [x] SoodDiscovery (multicast sockets, interface polling)
+- [x] DiscoveredCore broadcast channel
+- [x] Adaptive scan interval (10s → 60s)
 
 ### Phase 4: roon-api SDK — Core + Registry
 
@@ -71,18 +71,19 @@ roon-rs/
 
 ### Phase 5: roon-api SDK — Transport Service
 
-- [ ] Transport (subscribe_zones, subscribe_outputs)
-- [ ] Zone, Output, NowPlaying, PlayState types
-- [ ] Control commands (play, pause, stop, next, previous, seek)
-- [ ] Volume control (change_volume, mute)
-- [ ] Zone settings (shuffle, loop, auto_radio)
-- [ ] Output grouping (group, ungroup)
+- [x] Transport (subscribe_zones, subscribe_outputs)
+- [x] Zone, Output, NowPlaying, PlayState types
+- [x] Control commands (play, pause, stop, next, previous, seek)
+- [x] Volume control (change_volume, mute)
+- [x] Zone settings (shuffle, loop, auto_radio)
+- [x] Output grouping (group, ungroup)
+- [x] Integration tests (3) with mock Roon Core + deserialization test
 - [ ] **Milestone: CLI zone listing + playback control with real Roon Core**
 
 ### Phase 6: roon-api SDK — Browse Service
 
-- [ ] Browse (browse, load)
-- [ ] BrowseResult, BrowseList, BrowseItem types
+- [x] Browse (browse, load)
+- [x] BrowseResult, BrowseList, BrowseItem types
 
 ### Phase 7: Hub Binary (roon-hub)
 

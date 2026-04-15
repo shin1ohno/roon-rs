@@ -110,6 +110,9 @@ pub(crate) async fn perform_handshake(
         }
     }
 
+    // Extract host from URL for image service
+    let host = extract_host(url);
+
     Ok(Core {
         inner: Arc::new(CoreInner {
             core_id,
@@ -117,6 +120,7 @@ pub(crate) async fn perform_handshake(
             display_version: core_display_version,
             token: new_token,
             http_port,
+            host,
             connection,
         }),
     })
@@ -195,6 +199,8 @@ pub(crate) async fn perform_handshake_with_token(
         }
     }
 
+    let host = extract_host(url);
+
     Ok(Core {
         inner: Arc::new(CoreInner {
             core_id,
@@ -202,9 +208,20 @@ pub(crate) async fn perform_handshake_with_token(
             display_version: core_display_version,
             token: new_token,
             http_port,
+            host,
             connection,
         }),
     })
+}
+
+/// Extract host from a ws:// URL.
+fn extract_host(url: &str) -> String {
+    url.strip_prefix("ws://")
+        .unwrap_or(url)
+        .split(':')
+        .next()
+        .unwrap_or("127.0.0.1")
+        .to_string()
 }
 
 fn build_service_handlers(

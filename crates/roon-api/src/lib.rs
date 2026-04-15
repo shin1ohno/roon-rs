@@ -1,5 +1,6 @@
 pub mod browse;
 mod client;
+pub mod connection;
 pub mod core;
 mod error;
 mod event;
@@ -15,6 +16,7 @@ pub mod volume_control;
 pub mod zone;
 
 pub use client::{RoonClient, RoonClientBuilder};
+pub use connection::ConnectionState;
 pub use error::ApiError;
 pub use event::RoonEvent;
 pub use self::core::Core;

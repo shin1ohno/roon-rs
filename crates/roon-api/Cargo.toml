@@ -2,3 +2,17 @@
 name = "roon-api"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+roon-moo = { path = "../roon-moo" }
+roon-sood = { path = "../roon-sood" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+futures-util = "0.3"
+roon-moo = { path = "../roon-moo" }
+tokio-tungstenite = "0.26"

@@ -89,6 +89,14 @@ pub struct MooConnection {
     task_handle: tokio::task::JoinHandle<()>,
 }
 
+impl std::fmt::Debug for MooConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MooConnection")
+            .field("alive", &!self.task_handle.is_finished())
+            .finish()
+    }
+}
+
 impl MooConnection {
     /// Connect to a Roon Core's MOO endpoint.
     ///

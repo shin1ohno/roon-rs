@@ -317,16 +317,87 @@ impl Transport {
     }
 
     /// Standby an output.
-    pub async fn standby(&self, output_id: &str) -> Result<(), ApiError> {
+    pub async fn standby(
+        &self,
+        output_id: &str,
+        control_key: Option<&str>,
+    ) -> Result<(), ApiError> {
+        let mut body = serde_json::json!({ "output_id": output_id });
+        if let Some(ck) = control_key {
+            body["control_key"] = serde_json::Value::String(ck.to_string());
+        }
         self.connection
-            .send_request(
-                "com.roonlabs.transport:2/standby",
-                Some(serde_json::json!({
-                    "output_id": output_id
-                })),
-            )
+            .send_request("com.roonlabs.transport:2/standby", Some(body))
             .await?;
         Ok(())
+    }
+
+    /// Toggle standby on an output.
+    pub async fn toggle_standby(
+        &self,
+        output_id: &str,
+        control_key: Option<&str>,
+    ) -> Result<(), ApiError> {
+        let mut body = serde_json::json!({ "output_id": output_id });
+        if let Some(ck) = control_key {
+            body["control_key"] = serde_json::Value::String(ck.to_string());
+        }
+        self.connection
+            .send_request("com.roonlabs.transport:2/toggle_standby", Some(body))
+            .await?;
+        Ok(())
+    }
+
+    /// Trigger a convenience switch on an output.
+    pub async fn convenience_switch(
+        &self,
+        output_id: &str,
+        control_key: Option<&str>,
+    ) -> Result<(), ApiError> {
+        let mut body = serde_json::json!({ "output_id": output_id });
+        if let Some(ck) = control_key {
+            body["control_key"] = serde_json::Value::String(ck.to_string());
+        }
+        self.connection
+            .send_request("com.roonlabs.transport:2/convenience_switch", Some(body))
+            .await?;
+        Ok(())
+    }
+
+    /// Pause all zones.
+    pub async fn pause_all(&self) -> Result<(), ApiError> {
+        self.connection
+            .send_request("com.roonlabs.transport:2/pause_all", None)
+            .await?;
+        Ok(())
+    }
+
+    /// Get current zones (one-shot, non-subscription).
+    pub async fn get_zones(&self) -> Result<Vec<Zone>, ApiError> {
+        let response = self
+            .connection
+            .send_request("com.roonlabs.transport:2/get_zones", None)
+            .await?;
+        let body = response
+            .json_body()
+            .ok_or(ApiError::RegistryFailed("get_zones: no body".into()))?;
+        let zones: Vec<Zone> =
+            serde_json::from_value(body["zones"].clone()).unwrap_or_default();
+        Ok(zones)
+    }
+
+    /// Get current outputs (one-shot, non-subscription).
+    pub async fn get_outputs(&self) -> Result<Vec<Output>, ApiError> {
+        let response = self
+            .connection
+            .send_request("com.roonlabs.transport:2/get_outputs", None)
+            .await?;
+        let body = response
+            .json_body()
+            .ok_or(ApiError::RegistryFailed("get_outputs: no body".into()))?;
+        let outputs: Vec<Output> =
+            serde_json::from_value(body["outputs"].clone()).unwrap_or_default();
+        Ok(outputs)
     }
 }
 

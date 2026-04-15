@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 bytes = { workspace = true }
+socket2 = "0.5"
 thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
+pub mod discovery;
 mod parse;
 mod serialize;
 
+pub use discovery::{DiscoveredCore, SoodDiscovery};
 pub use parse::parse;
 pub use serialize::serialize_query;
 
@@ -42,6 +44,8 @@ pub enum SoodError {
     InvalidNameUtf8(#[from] std::string::FromUtf8Error),
     #[error("invalid UTF-8 in property value")]
     InvalidValueUtf8,
+    #[error("I/O error: {0}")]
+    Io(String),
 }
 
 pub const SOOD_PORT: u16 = 9003;

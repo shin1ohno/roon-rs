@@ -5,13 +5,15 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-roon-api = { path = "../roon-api" }
+dirs-next = "2"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 rmcp = { version = "1.4", features = ["server", "transport-io", "transport-streamable-http-server"] }
+roon-api = { path = "../roon-api" }
 schemars = "0.8"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-toml = "0.8"
+tower-service = "0.3"
 tracing = { workspace = true }
-dirs-next = "2"
 tracing-subscriber = { workspace = true }

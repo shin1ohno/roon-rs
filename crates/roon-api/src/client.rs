@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::sync::{broadcast, Mutex};
 
@@ -8,6 +9,9 @@ use crate::error::ApiError;
 use crate::event::RoonEvent;
 use crate::registry::{self, ExtensionInfo};
 use crate::token::{MemoryTokenStore, TokenStore};
+
+const BACKOFF_INITIAL: Duration = Duration::from_secs(1);
+const BACKOFF_MAX: Duration = Duration::from_secs(60);
 
 /// Builder for constructing a `RoonClient`.
 pub struct RoonClientBuilder {
@@ -131,6 +135,8 @@ impl RoonClient {
     /// Start SOOD-based discovery of Roon Cores on the local network.
     ///
     /// Discovered cores are automatically connected to and registered with.
+    /// If a connection is lost, the core is removed from the connected set
+    /// and will be reconnected on the next discovery response.
     /// Events are emitted via the `events()` channel.
     pub async fn start_discovery(&self) -> Result<(), ApiError> {
         let (discovery, mut core_rx) = roon_sood::SoodDiscovery::start().await?;
@@ -144,7 +150,6 @@ impl RoonClient {
                 Arc::new(Mutex::new(HashSet::new()));
 
             while let Ok(discovered) = core_rx.recv().await {
-                // Skip cores we've already connected to
                 {
                     let cores = connected_cores.lock().await;
                     if cores.contains(&discovered.core_id) {
@@ -161,10 +166,25 @@ impl RoonClient {
 
                 match registry::perform_handshake(&url, &info, &*token_store).await {
                     Ok(core) => {
-                        connected_cores
-                            .lock()
-                            .await
-                            .insert(discovered.core_id.clone());
+                        let core_id = discovered.core_id.clone();
+                        connected_cores.lock().await.insert(core_id.clone());
+
+                        // Monitor connection health — remove from set on disconnect
+                        let cores_ref = connected_cores.clone();
+                        let event_tx_ref = event_tx.clone();
+                        let core_ref = core.clone();
+                        tokio::spawn(async move {
+                            monitor_connection(&core_ref).await;
+                            cores_ref.lock().await.remove(&core_id);
+                            let _ = event_tx_ref.send(RoonEvent::CoreLost {
+                                core_id: core_id.clone(),
+                            });
+                            tracing::info!(
+                                "Core {} disconnected, will reconnect on next discovery",
+                                core_id
+                            );
+                        });
+
                         let _ = event_tx.send(RoonEvent::CorePaired(core));
                     }
                     Err(e) => {
@@ -178,13 +198,71 @@ impl RoonClient {
         Ok(())
     }
 
-    /// Connect directly to a known Roon Core (skip discovery).
+    /// Connect directly to a known Roon Core with automatic reconnection.
     ///
-    /// Use this when the host and port are already known.
+    /// On connection loss, retries with exponential backoff (1s → 60s max).
+    /// Emits `CoreLost` on disconnect and `CorePaired` on reconnect.
     pub async fn connect(&self, host: &str, port: u16) -> Result<Core, ApiError> {
         let url = format!("ws://{}:{}/api", host, port);
         let core = registry::perform_handshake(&url, &self.info, &*self.token_store).await?;
         let _ = self.event_tx.send(RoonEvent::CorePaired(core.clone()));
+
+        // Spawn reconnection loop
+        let url = url.clone();
+        let info = self.info.clone();
+        let token_store = self.token_store.clone();
+        let event_tx = self.event_tx.clone();
+        let initial_core = core.clone();
+
+        tokio::spawn(async move {
+            monitor_connection(&initial_core).await;
+
+            let core_id = initial_core.core_id().to_string();
+            let _ = event_tx.send(RoonEvent::CoreLost {
+                core_id: core_id.clone(),
+            });
+
+            let mut backoff = BACKOFF_INITIAL;
+            loop {
+                tracing::info!(
+                    "Reconnecting to {} in {:?}...",
+                    url,
+                    backoff
+                );
+                tokio::time::sleep(backoff).await;
+
+                match registry::perform_handshake(&url, &info, &*token_store).await {
+                    Ok(new_core) => {
+                        tracing::info!("Reconnected to core {}", new_core.core_id());
+                        let _ = event_tx.send(RoonEvent::CorePaired(new_core.clone()));
+
+                        // Monitor again
+                        monitor_connection(&new_core).await;
+                        let _ = event_tx.send(RoonEvent::CoreLost {
+                            core_id: new_core.core_id().to_string(),
+                        });
+
+                        // Reset backoff on successful reconnection
+                        backoff = BACKOFF_INITIAL;
+                    }
+                    Err(e) => {
+                        tracing::warn!("Reconnection failed: {}", e);
+                        backoff = (backoff * 2).min(BACKOFF_MAX);
+                    }
+                }
+            }
+        });
+
         Ok(core)
+    }
+}
+
+/// Wait until the connection to a core is no longer alive.
+async fn monitor_connection(core: &Core) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        if !core.is_alive() {
+            break;
+        }
     }
 }

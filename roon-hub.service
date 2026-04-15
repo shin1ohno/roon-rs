@@ -1,0 +1,23 @@
+[Unit]
+Description=Roon Hub - MQTT bridge for Roon audio system
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/roon-hub /etc/roon-hub/roon-hub.toml
+WorkingDirectory=/etc/roon-hub
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/etc/roon-hub
+PrivateTmp=true
+
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

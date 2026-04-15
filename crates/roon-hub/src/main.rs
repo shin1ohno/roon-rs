@@ -83,8 +83,12 @@ async fn main() -> anyhow::Result<()> {
                         // Send transport to command handler
                         let _ = transport_tx.send(transport).await;
 
-                        // Zone event forwarder
+                        // Zone event forwarder with seek throttling
                         tokio::spawn(async move {
+                            let mut last_seek_publish = std::time::Instant::now()
+                                - std::time::Duration::from_secs(10);
+                            let seek_throttle = std::time::Duration::from_secs(1);
+
                             while let Some(event) = zone_rx.recv().await {
                                 match &event {
                                     ZoneEvent::Initial(zones) => {
@@ -103,7 +107,14 @@ async fn main() -> anyhow::Result<()> {
                                     ZoneEvent::Removed(ids) => {
                                         tracing::info!("Zones removed: {:?}", ids);
                                     }
-                                    ZoneEvent::Seeked(_) => {}
+                                    ZoneEvent::Seeked(seeks) => {
+                                        if last_seek_publish.elapsed() >= seek_throttle {
+                                            last_seek_publish = std::time::Instant::now();
+                                            if let Err(e) = mqtt::publish_seek(&mqtt, &prefix, seeks).await {
+                                                tracing::warn!("MQTT seek publish error: {}", e);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         });

@@ -82,6 +82,22 @@ pub async fn publish_zone(
     Ok(())
 }
 
+/// Publish seek position updates (throttled by caller).
+pub async fn publish_seek(
+    client: &AsyncClient,
+    topic_prefix: &str,
+    seeks: &[roon_api::ZoneSeek],
+) -> anyhow::Result<()> {
+    for seek in seeks {
+        let topic = format!("{}/zone/{}/seek", topic_prefix, seek.zone_id);
+        let payload = serde_json::to_string(seek)?;
+        client
+            .publish(&topic, QoS::AtMostOnce, false, payload)
+            .await?;
+    }
+    Ok(())
+}
+
 /// Publish all zones as a list.
 pub async fn publish_zones(
     client: &AsyncClient,

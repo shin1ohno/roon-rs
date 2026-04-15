@@ -51,4 +51,9 @@ impl Core {
     pub fn browse(&self) -> Browse {
         Browse::new(self.inner.connection.clone())
     }
+
+    /// Check if the connection to this core is still alive.
+    pub fn is_alive(&self) -> bool {
+        self.inner.connection.is_alive()
+    }
 }

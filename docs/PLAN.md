@@ -67,7 +67,7 @@ roon-rs/
 - [x] Pairing service (provided to Roon Core)
 - [x] Ping service
 - [x] Integration tests (4) with mock Roon Core
-- [ ] Connection manager (state machine, reconnection) — deferred to Phase 8
+- [x] Connection manager (ConnectionState enum with watch_connection_state())
 
 ### Phase 5: roon-api SDK — Transport Service
 
@@ -98,7 +98,7 @@ roon-rs/
 - [x] Reconnection logic (exponential backoff, 1s→60s)
 - [x] Seek position throttling (1/s in roon-hub)
 - [x] RPi memory profiling (4.5MB RSS, stable after 30s, no leak detected)
-- [ ] CI pipeline (aarch64 cross-compile)
+- [x] CI pipeline (GitHub Actions: test + aarch64 cross-compile)
 - [x] Systemd service file
 
 ### Phase 9: Feature Parity with Node.js Reference

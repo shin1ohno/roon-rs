@@ -42,7 +42,7 @@ pub struct LoadOptions {
 }
 
 /// Result of a browse operation.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseResult {
     pub action: String,
     #[serde(default)]
@@ -52,7 +52,7 @@ pub struct BrowseResult {
 }
 
 /// A list within the browse hierarchy.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseList {
     pub title: String,
     #[serde(default)]
@@ -68,7 +68,7 @@ pub struct BrowseList {
 }
 
 /// An item in a browse list.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseItem {
     pub title: String,
     #[serde(default)]
@@ -84,7 +84,7 @@ pub struct BrowseItem {
 }
 
 /// Input prompt for search items.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputPrompt {
     #[serde(default)]
     pub prompt: Option<String>,
@@ -97,7 +97,7 @@ pub struct InputPrompt {
 }
 
 /// Result of a load operation.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadResult {
     #[serde(default)]
     pub items: Vec<BrowseItem>,

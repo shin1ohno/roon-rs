@@ -78,7 +78,7 @@ roon-rs/
 - [x] Zone settings (shuffle, loop, auto_radio)
 - [x] Output grouping (group, ungroup)
 - [x] Integration tests (3) with mock Roon Core + deserialization test
-- [ ] **Milestone: CLI zone listing + playback control with real Roon Core**
+- [x] **Milestone: CLI zone listing + playback control with real Roon Core** (4 zones, play/pause verified)
 
 ### Phase 6: roon-api SDK — Browse Service
 

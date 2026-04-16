@@ -1,0 +1,21 @@
+[package]
+name = "roon-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "roon"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dirs-next = "2"
+roon-api = { path = "../roon-api" }
+roon-sood = { path = "../roon-sood" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+toml = "0.8"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

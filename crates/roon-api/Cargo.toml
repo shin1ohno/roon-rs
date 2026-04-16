@@ -2,11 +2,18 @@
 name = "roon-api"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Rust SDK for Roon audio system (discovery, transport, browse)"
+repository = "https://github.com/shin1ohno/roon-rs"
+homepage = "https://github.com/shin1ohno/roon-rs"
+readme = "../../README.md"
+keywords = ["roon", "audio", "music", "sdk", "transport"]
+categories = ["multimedia::audio", "api-bindings"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-roon-moo = { path = "../roon-moo" }
-roon-sood = { path = "../roon-sood" }
+roon-moo = { path = "../roon-moo", version = "0.1.0" }
+roon-sood = { path = "../roon-sood", version = "0.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -17,6 +24,6 @@ tracing = { workspace = true }
 anyhow = "1"
 dirs-next = "2"
 futures-util = "0.3"
-roon-moo = { path = "../roon-moo" }
+roon-moo = { path = "../roon-moo", version = "0.1.0" }
 tokio-tungstenite = "0.26"
 tracing-subscriber = { workspace = true }

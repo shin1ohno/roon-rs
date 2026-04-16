@@ -1,0 +1,41 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish crates in dependency order
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Publish roon-moo
+        run: cargo publish -p roon-moo --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish roon-sood
+        run: cargo publish -p roon-sood --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io index
+        run: sleep 45
+
+      - name: Publish roon-api
+        run: cargo publish -p roon-api --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for crates.io index
+        run: sleep 45
+
+      - name: Publish roon-cli
+        run: cargo publish -p roon-cli --token ${{ secrets.CRATES_IO_TOKEN }}

@@ -2,6 +2,13 @@
 name = "roon-sood"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "SOOD UDP discovery protocol for Roon audio system"
+repository = "https://github.com/shin1ohno/roon-rs"
+homepage = "https://github.com/shin1ohno/roon-rs"
+readme = "../../README.md"
+keywords = ["roon", "audio", "music", "discovery", "sood"]
+categories = ["multimedia::audio", "network-programming"]
 
 [dependencies]
 bytes = { workspace = true }

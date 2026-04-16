@@ -2,6 +2,7 @@
 name = "roon-mcp"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [dependencies]
 anyhow = "1"
@@ -9,7 +10,7 @@ dirs-next = "2"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 rmcp = { version = "1.4", features = ["server", "transport-io", "transport-streamable-http-server"] }
-roon-api = { path = "../roon-api" }
+roon-api = { path = "../roon-api", version = "0.1.0" }
 schemars = "0.8"
 serde = { workspace = true }
 serde_json = { workspace = true }

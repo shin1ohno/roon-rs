@@ -2,10 +2,11 @@
 name = "roon-hub"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [dependencies]
 anyhow = "1"
-roon-api = { path = "../roon-api" }
+roon-api = { path = "../roon-api", version = "0.1.0" }
 rumqttc = "0.24"
 serde = { workspace = true }
 serde_json = { workspace = true }

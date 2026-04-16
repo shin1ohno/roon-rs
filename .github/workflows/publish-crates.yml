@@ -39,3 +39,7 @@ jobs:
 
       - name: Publish roon-cli
         run: cargo publish -p roon-cli --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish roon-mcp
+        run: cargo publish -p roon-mcp --token ${{ secrets.CRATES_IO_TOKEN }}

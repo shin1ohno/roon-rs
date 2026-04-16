@@ -4,8 +4,8 @@ Rust SDK and tools for [Roon](https://roonlabs.com/)'s proprietary protocols (SO
 
 - **`roon-api`** — Standalone SDK. Any Rust program can add it as a dependency to discover, connect to, and control a Roon Core.
 - **`roon-cli`** — Command-line tool (`roon`) for controlling Roon from a terminal.
+- **`roon-mcp`** — MCP server exposing Roon as tools for AI assistants (Claude Code, etc.).
 - **`roon-hub`** — MQTT bridge binary (not published to crates.io).
-- **`roon-mcp`** — MCP server exposing Roon as tools for AI assistants (not published to crates.io).
 
 ## Install the CLI
 
@@ -18,14 +18,26 @@ cargo install roon-cli
 ### From GitHub Releases (pre-built binaries)
 
 ```sh
-# Linux / macOS
+# roon-cli (the `roon` command)
 curl -LsSf https://github.com/shin1ohno/roon-rs/releases/latest/download/roon-cli-installer.sh | sh
+
+# roon-mcp (MCP server)
+curl -LsSf https://github.com/shin1ohno/roon-rs/releases/latest/download/roon-mcp-installer.sh | sh
 
 # Windows (PowerShell)
 powershell -c "irm https://github.com/shin1ohno/roon-rs/releases/latest/download/roon-cli-installer.ps1 | iex"
 ```
 
 Supported targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`.
+
+## Install the MCP server
+
+```sh
+cargo install roon-mcp
+# or grab a pre-built binary from GitHub Releases (see above).
+```
+
+Run `roon-mcp --transport stdio` (default) or `--transport sse --http-port 8080` for SSE/HTTP. See `crates/roon-mcp/` for details.
 
 ## Quick Start
 

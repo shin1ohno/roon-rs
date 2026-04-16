@@ -72,6 +72,9 @@ enum Command {
         /// Search by artist name
         #[arg(short = 'A', long)]
         artist: Option<String>,
+        /// Shuffle instead of playing in order
+        #[arg(short = 's', long)]
+        shuffle: bool,
     },
 
     /// Pause playback
@@ -296,6 +299,7 @@ async fn main() -> anyhow::Result<()> {
                     zone_id,
                     album,
                     artist,
+                    shuffle,
                 } => {
                     commands::transport::play(
                         core,
@@ -303,6 +307,7 @@ async fn main() -> anyhow::Result<()> {
                         zone_id.as_deref(),
                         album.as_deref(),
                         artist.as_deref(),
+                        shuffle,
                     )
                     .await?;
                 }

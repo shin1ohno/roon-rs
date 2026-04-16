@@ -69,6 +69,7 @@ pub async fn play(
     zone_id: Option<&str>,
     album: Option<&str>,
     artist: Option<&str>,
+    shuffle: bool,
 ) -> Result<()> {
     let transport = core.transport();
     let zones = transport.get_zones().await?;
@@ -76,7 +77,7 @@ pub async fn play(
 
     // If search filters provided, use browse to find and play
     if album.is_some() || artist.is_some() {
-        return search_and_play(core, &zid, album, artist).await;
+        return search_and_play(core, &zid, album, artist, shuffle).await;
     }
 
     transport.control(&zid, ControlAction::Play).await?;
@@ -245,6 +246,7 @@ async fn search_and_play(
     zone_id: &str,
     album: Option<&str>,
     artist: Option<&str>,
+    shuffle: bool,
 ) -> Result<()> {
     let browse = core.browse();
     let debug = std::env::var("ROON_DEBUG").is_ok();
@@ -255,6 +257,12 @@ async fn search_and_play(
         (None, Some(ar)) => ar.to_string(),
         (None, None) => bail!("No search criteria provided."),
     };
+
+    // Action preference list. When shuffle is requested and no album is specified,
+    // prefer "Play Artist" (which has a Shuffle submenu entry covering all tracks).
+    // Otherwise prefer "Play Album" / "Play Track" (which have Play Now + Shuffle).
+    let allow_play_artist = shuffle && album.is_none();
+    let submenu_entry = if shuffle { "Shuffle" } else { "Play Now" };
 
     if debug {
         eprintln!("[DEBUG] Searching for: {}", query);
@@ -338,12 +346,16 @@ async fn search_and_play(
             }
         }
 
-        // Priority 1: trigger a playable action_list that has a Play Now submenu.
-        // Skip "Play Artist" and "Play Genre" because their submenus don't include
-        // Play Now (only Shuffle/Start Radio).
+        // Priority 1: trigger a playable action_list whose submenu contains
+        // the requested entry (Play Now or Shuffle).
+        // "Play Artist" is only considered when shuffling an artist (it lacks Play Now).
         let playable_action = page.items.iter().find(|i| {
+            let t = i.title.as_str();
+            if allow_play_artist && t == "Play Artist" {
+                return true;
+            }
             matches!(
-                i.title.as_str(),
+                t,
                 "Play Album" | "Play Now" | "Play Track" | "Play From Here" | "Play Work"
             )
         });
@@ -386,32 +398,35 @@ async fn search_and_play(
                     }
                 }
 
-                if let Some(play_now_key) = sub
+                if let Some(entry_key) = sub
                     .items
                     .iter()
-                    .find(|i| i.title == "Play Now")
+                    .find(|i| i.title == submenu_entry)
                     .and_then(|i| i.item_key.clone())
                 {
                     browse
                         .browse(BrowseOptions {
                             hierarchy: Some("search".to_string()),
-                            item_key: Some(play_now_key),
+                            item_key: Some(entry_key),
                             zone_or_output_id: Some(zone_id.to_string()),
                             ..Default::default()
                         })
                         .await?;
-                    println!("Playing: {}", top_title);
+                    let verb = if shuffle { "Shuffling" } else { "Playing" };
+                    println!("{}: {}", verb, top_title);
                     return Ok(());
                 }
                 bail!(
-                    "'{}' has no 'Play Now' submenu (found: {})",
+                    "'{}' has no '{}' submenu (found: {})",
                     action_item.title,
+                    submenu_entry,
                     sub.items.iter().map(|i| i.title.as_str()).collect::<Vec<_>>().join(", ")
                 );
             }
 
             // Direct action executed (action != "list")
-            println!("Playing: {}", top_title);
+            let verb = if shuffle { "Shuffling" } else { "Playing" };
+            println!("{}: {}", verb, top_title);
             return Ok(());
         }
 

@@ -22,7 +22,6 @@ async fn main() -> anyhow::Result<()> {
 
     // MQTT bridge
     let mqtt_bridge = mqtt::MqttBridge::new(&config.mqtt);
-    let topic_prefix = mqtt_bridge.topic_prefix().to_string();
     let (mqtt_client, mut command_rx) = mqtt_bridge.start().await?;
     tracing::info!("MQTT connected to {}:{}", config.mqtt.host, config.mqtt.port);
 
@@ -40,7 +39,6 @@ async fn main() -> anyhow::Result<()> {
 
     let mut events = client.events();
 
-    // Connect to Roon Core
     if let (Some(host), Some(port)) = (&config.roon.host, config.roon.port) {
         tracing::info!("Connecting directly to {}:{}", host, port);
         client.connect(host, port).await?;
@@ -49,17 +47,13 @@ async fn main() -> anyhow::Result<()> {
         client.start_discovery().await?;
     }
 
-    // Channel for passing transport handle to command router
+    // Command handler task
     let (transport_tx, mut transport_rx) = tokio::sync::mpsc::channel::<roon_api::Transport>(1);
 
-    // Command handler task (spawned once, waits for transport)
-    let cmd_prefix = topic_prefix.clone();
     tokio::spawn(async move {
         if let Some(transport) = transport_rx.recv().await {
             while let Some((topic, payload)) = command_rx.recv().await {
-                if let Err(e) =
-                    router::handle_command(&transport, &cmd_prefix, &topic, &payload).await
-                {
+                if let Err(e) = router::handle_command(&transport, &topic, &payload).await {
                     tracing::warn!("Command error: {}", e);
                 }
             }
@@ -78,12 +72,9 @@ async fn main() -> anyhow::Result<()> {
                         let transport = core.transport();
                         let mut zone_rx = transport.subscribe_zones().await?;
                         let mqtt = mqtt_client.clone();
-                        let prefix = topic_prefix.clone();
 
-                        // Send transport to command handler
                         let _ = transport_tx.send(transport).await;
 
-                        // Zone event forwarder with seek throttling
                         tokio::spawn(async move {
                             let mut last_seek_publish = std::time::Instant::now()
                                 - std::time::Duration::from_secs(10);
@@ -93,13 +84,13 @@ async fn main() -> anyhow::Result<()> {
                                 match &event {
                                     ZoneEvent::Initial(zones) => {
                                         tracing::info!("Received {} zones", zones.len());
-                                        if let Err(e) = mqtt::publish_zones(&mqtt, &prefix, zones).await {
+                                        if let Err(e) = mqtt::publish_zones(&mqtt, zones).await {
                                             tracing::warn!("MQTT publish error: {}", e);
                                         }
                                     }
                                     ZoneEvent::Changed(zones) | ZoneEvent::Added(zones) => {
                                         for zone in zones {
-                                            if let Err(e) = mqtt::publish_zone(&mqtt, &prefix, zone).await {
+                                            if let Err(e) = mqtt::publish_zone(&mqtt, zone).await {
                                                 tracing::warn!("MQTT publish error: {}", e);
                                             }
                                         }
@@ -110,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
                                     ZoneEvent::Seeked(seeks) => {
                                         if last_seek_publish.elapsed() >= seek_throttle {
                                             last_seek_publish = std::time::Instant::now();
-                                            if let Err(e) = mqtt::publish_seek(&mqtt, &prefix, seeks).await {
+                                            if let Err(e) = mqtt::publish_seek(&mqtt, seeks).await {
                                                 tracing::warn!("MQTT seek publish error: {}", e);
                                             }
                                         }

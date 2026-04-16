@@ -3,12 +3,14 @@ use tokio::sync::mpsc;
 
 use crate::config::MqttConfig;
 
-/// MQTT bridge that publishes Roon zone state and receives device commands.
+/// MQTT bridge that publishes Roon zone state and receives commands.
+///
+/// Topic structure aligned with weave SPEC:
+///   Publish: service/roon/{zone_id}/state/{property}
+///   Subscribe: service/roon/+/command/+
 pub struct MqttBridge {
     client: AsyncClient,
     event_loop: EventLoop,
-    topic_prefix: String,
-    /// Receiver for inbound MQTT commands (topic, payload).
     command_rx: mpsc::Receiver<(String, String)>,
     command_tx: mpsc::Sender<(String, String)>,
 }
@@ -24,23 +26,15 @@ impl MqttBridge {
         MqttBridge {
             client,
             event_loop,
-            topic_prefix: config.topic_prefix.clone(),
             command_rx,
             command_tx,
         }
     }
 
-    /// Topic prefix for constructing topic paths.
-    pub fn topic_prefix(&self) -> &str {
-        &self.topic_prefix
-    }
-
-    /// Subscribe to command topics and run the MQTT event loop.
-    /// Returns a receiver for incoming commands.
     pub async fn start(mut self) -> anyhow::Result<(AsyncClient, mpsc::Receiver<(String, String)>)> {
-        let command_topic = format!("{}/command/#", self.topic_prefix);
+        // Subscribe to weave-compatible command topics
         self.client
-            .subscribe(&command_topic, QoS::AtLeastOnce)
+            .subscribe("service/roon/+/command/+", QoS::AtLeastOnce)
             .await?;
 
         let command_tx = self.command_tx.clone();
@@ -68,28 +62,63 @@ impl MqttBridge {
     }
 }
 
-/// Publish a zone state update to MQTT.
+/// Publish zone state to service/roon/{zone_id}/state/zone (full JSON).
 pub async fn publish_zone(
     client: &AsyncClient,
-    topic_prefix: &str,
     zone: &roon_api::Zone,
 ) -> anyhow::Result<()> {
-    let topic = format!("{}/zone/{}", topic_prefix, zone.zone_id);
+    let topic = format!("service/roon/{}/state/zone", zone.zone_id);
     let payload = serde_json::to_string(zone)?;
     client
         .publish(&topic, QoS::AtLeastOnce, true, payload)
         .await?;
+
+    // Also publish individual state properties for weave routing
+    let state_str = serde_json::to_string(&zone.state)?;
+    client
+        .publish(
+            &format!("service/roon/{}/state/playback", zone.zone_id),
+            QoS::AtLeastOnce,
+            true,
+            state_str,
+        )
+        .await?;
+
+    if let Some(np) = &zone.now_playing {
+        client
+            .publish(
+                &format!("service/roon/{}/state/now_playing", zone.zone_id),
+                QoS::AtLeastOnce,
+                true,
+                serde_json::to_string(np)?,
+            )
+            .await?;
+    }
+
+    // Publish volume per output
+    for output in &zone.outputs {
+        if let Some(vol) = &output.volume {
+            client
+                .publish(
+                    &format!("service/roon/{}/state/volume", zone.zone_id),
+                    QoS::AtLeastOnce,
+                    true,
+                    serde_json::to_string(vol)?,
+                )
+                .await?;
+        }
+    }
+
     Ok(())
 }
 
-/// Publish seek position updates (throttled by caller).
+/// Publish seek position updates.
 pub async fn publish_seek(
     client: &AsyncClient,
-    topic_prefix: &str,
     seeks: &[roon_api::ZoneSeek],
 ) -> anyhow::Result<()> {
     for seek in seeks {
-        let topic = format!("{}/zone/{}/seek", topic_prefix, seek.zone_id);
+        let topic = format!("service/roon/{}/state/seek", seek.zone_id);
         let payload = serde_json::to_string(seek)?;
         client
             .publish(&topic, QoS::AtMostOnce, false, payload)
@@ -98,13 +127,12 @@ pub async fn publish_seek(
     Ok(())
 }
 
-/// Publish all zones as a list.
+/// Publish all zones.
 pub async fn publish_zones(
     client: &AsyncClient,
-    topic_prefix: &str,
     zones: &[roon_api::Zone],
 ) -> anyhow::Result<()> {
-    let topic = format!("{}/zones", topic_prefix);
+    // Publish zone list
     let summary: Vec<serde_json::Value> = zones
         .iter()
         .map(|z| {
@@ -115,13 +143,17 @@ pub async fn publish_zones(
             })
         })
         .collect();
-    let payload = serde_json::to_string(&summary)?;
     client
-        .publish(&topic, QoS::AtLeastOnce, true, payload)
+        .publish(
+            "service/roon/zones",
+            QoS::AtLeastOnce,
+            true,
+            serde_json::to_string(&summary)?,
+        )
         .await?;
 
     for zone in zones {
-        publish_zone(client, topic_prefix, zone).await?;
+        publish_zone(client, zone).await?;
     }
     Ok(())
 }

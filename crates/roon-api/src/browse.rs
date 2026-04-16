@@ -44,6 +44,7 @@ pub struct LoadOptions {
 /// Result of a browse operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseResult {
+    #[serde(default)]
     pub action: String,
     #[serde(default)]
     pub list: Option<BrowseList>,
@@ -54,6 +55,7 @@ pub struct BrowseResult {
 /// A list within the browse hierarchy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseList {
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub count: u32,
@@ -70,6 +72,7 @@ pub struct BrowseList {
 /// An item in a browse list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowseItem {
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub subtitle: Option<String>,

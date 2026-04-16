@@ -5,20 +5,22 @@ use anyhow::{bail, Result};
 use crate::config::{self, ServerConfig, ZoneConfig};
 use crate::connect;
 
-pub async fn discover(timeout_secs: u64) -> Result<()> {
-    println!("Discovering Roon Cores...");
-    let cores = connect::discover_cores(timeout_secs).await?;
+pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
+    eprintln!("Discovering Roon Cores ({}s scan)...", scan_secs);
+    let cores = connect::discover_cores(scan_secs).await?;
 
     if cores.is_empty() {
         bail!("No Roon Cores found on the network.");
     }
 
-    println!("Found Roon Cores:");
+    println!("Found {} Roon Core(s):", cores.len());
     for (i, core) in cores.iter().enumerate() {
-        println!("  {}) {} ({}:{})", i + 1, core.core_id, core.host, core.http_port);
+        let short_id = &core.core_id[..core.core_id.len().min(8)];
+        println!("  {}) {}:{} ({}...)", i + 1, core.host, core.http_port, short_id);
     }
 
     let selected = if cores.len() == 1 {
+        println!("Auto-selecting the only core.");
         &cores[0]
     } else {
         let idx = prompt_selection(cores.len())?;
@@ -36,10 +38,13 @@ pub async fn discover(timeout_secs: u64) -> Result<()> {
     println!("Default server set: {}:{}", selected.host, selected.http_port);
 
     // Attempt pairing
-    println!("Connecting to pair...");
-    match connect::connect(&selected.host.to_string(), selected.http_port, timeout_secs).await {
-        Ok(_) => println!("Paired successfully."),
-        Err(e) => println!("Pairing pending — authorize in Roon Settings > Extensions. ({})", e),
+    eprintln!("Connecting... Approve 'roon-rs CLI' in Roon Settings > Extensions if prompted.");
+    match connect::connect(&selected.host.to_string(), selected.http_port, pairing_timeout_secs).await {
+        Ok(conn) => println!("Paired with: {}", conn.core.display_name()),
+        Err(e) => println!(
+            "Pairing pending — authorize in Roon Settings > Extensions. ({})",
+            e
+        ),
     }
 
     Ok(())
@@ -79,6 +84,7 @@ pub async fn select_zone(
     }
 
     let idx = if zones.len() == 1 {
+        println!("Auto-selecting the only zone.");
         0
     } else {
         prompt_selection(zones.len())?
@@ -102,7 +108,10 @@ fn prompt_selection(count: usize) -> Result<usize> {
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
-    let n: usize = input.trim().parse().map_err(|_| anyhow::anyhow!("Invalid number"))?;
+    let n: usize = input
+        .trim()
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid number"))?;
     if n < 1 || n > count {
         bail!("Selection out of range.");
     }

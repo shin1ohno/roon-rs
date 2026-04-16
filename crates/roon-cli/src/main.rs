@@ -17,8 +17,8 @@ struct Cli {
     #[arg(long, global = true)]
     port: Option<u16>,
 
-    /// Connection timeout in seconds
-    #[arg(long, global = true, default_value = "10")]
+    /// Connection timeout in seconds (initial pairing requires approval in Roon app)
+    #[arg(long, global = true, default_value = "300")]
     timeout: u64,
 
     /// Output as JSON
@@ -32,13 +32,25 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Discover Roon Cores and set default server
-    Discover,
+    Discover {
+        /// Discovery scan duration in seconds
+        #[arg(long, default_value = "5")]
+        scan: u64,
+    },
 
     /// Clear default server
     Disconnect,
 
     /// Select default zone
     Zone,
+
+    /// Show playback status of the default (or specified) zone
+    Status {
+        #[arg(long)]
+        zone: Option<String>,
+        #[arg(long)]
+        zone_id: Option<String>,
+    },
 
     /// List all zones
     Zones,
@@ -238,8 +250,8 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Discover => {
-            commands::discover::discover(cli.timeout).await?;
+        Command::Discover { scan } => {
+            commands::discover::discover(scan, cli.timeout).await?;
         }
         Command::Disconnect => {
             commands::discover::disconnect().await?;
@@ -264,6 +276,15 @@ async fn main() -> anyhow::Result<()> {
             let core = &conn.core;
 
             match cmd {
+                Command::Status { zone, zone_id } => {
+                    commands::transport::status(
+                        core,
+                        zone.as_deref(),
+                        zone_id.as_deref(),
+                        cli.json,
+                    )
+                    .await?;
+                }
                 Command::Zones => {
                     commands::transport::zones(core, cli.json).await?;
                 }
@@ -432,7 +453,7 @@ async fn main() -> anyhow::Result<()> {
                     .await?;
                 }
                 // Already handled above
-                Command::Discover | Command::Disconnect | Command::Zone => unreachable!(),
+                Command::Discover { .. } | Command::Disconnect | Command::Zone => unreachable!(),
             }
         }
     }

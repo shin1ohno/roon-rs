@@ -123,9 +123,6 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Wait for Roon connection
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
     match transport_mode.as_str() {
         "stdio" => {
             tracing::info!("Starting MCP server (stdio)");

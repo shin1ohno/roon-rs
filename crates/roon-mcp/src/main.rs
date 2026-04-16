@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let client = RoonClientBuilder::new(
         "com.roon-rs.mcp",
         "roon-rs MCP Server",
-        "0.1.0",
+        "0.2.0",
         "roon-rs",
         "dev@example.com",
     )

@@ -82,6 +82,8 @@ pub struct LoadInput {
 pub struct SearchPlayInput {
     pub query: String,
     pub zone_or_output_id: String,
+    #[serde(default)]
+    pub shuffle: Option<bool>,
 }
 
 // --- Tool implementations ---
@@ -266,7 +268,7 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "search_and_play", description = "Search for music and play the top result. Navigates search → album → Play Now automatically.")]
+    #[tool(name = "search_and_play", description = "Search for music and play the top result. Navigates search → action list → Play Now automatically. Set shuffle=true to shuffle instead.")]
     async fn search_and_play(&self, Parameters(input): Parameters<SearchPlayInput>) -> String {
         let b = self.browse.lock().await;
         let b = match b.as_ref() {
@@ -274,7 +276,11 @@ impl RoonMcpServer {
             None => return json_str(serde_json::json!({"error": "Not connected"})),
         };
 
-        // Search
+        let shuffle = input.shuffle.unwrap_or(false);
+        let submenu_entry = if shuffle { "Shuffle" } else { "Play Now" };
+        let result_verb = if shuffle { "Shuffling" } else { "Playing" };
+
+        // Step 1: enter search hierarchy with query
         if let Err(e) = b.browse(BrowseOptions {
             hierarchy: Some("search".into()),
             pop_all: Some(true),
@@ -285,41 +291,128 @@ impl RoonMcpServer {
             return json_str(serde_json::json!({"error": format!("Search failed: {}", e)}));
         }
 
-        let items = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(5), ..Default::default() }).await {
+        let items = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(10), ..Default::default() }).await {
             Ok(r) => r,
             Err(e) => return json_str(serde_json::json!({"error": format!("Load failed: {}", e)})),
         };
 
-        let top_key = match items.items.first().and_then(|i| i.item_key.as_ref()) {
-            Some(k) => k.clone(),
-            None => return json_str(serde_json::json!({"error": "No results"})),
+        let top = match items.items.first() {
+            Some(t) => t,
+            None => return json_str(serde_json::json!({"error": format!("No results for '{}'", input.query)})),
         };
-        let top_title = items.items[0].title.clone();
-
-        // Navigate to top hit
-        let _ = b.browse(BrowseOptions { hierarchy: Some("search".into()), item_key: Some(top_key), zone_or_output_id: Some(input.zone_or_output_id.clone()), ..Default::default() }).await;
-        let items = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(5), ..Default::default() }).await {
-            Ok(r) => r,
-            Err(_) => return json_str(serde_json::json!({"result": "partial", "top_hit": top_title})),
+        let top_title = top.title.clone();
+        let mut next_key = match top.item_key.clone() {
+            Some(k) => k,
+            None => return json_str(serde_json::json!({"error": "Top hit has no item_key"})),
         };
 
-        // Navigate deeper + find Play action
-        if let Some(first_key) = items.items.first().and_then(|i| i.item_key.as_ref()) {
-            let _ = b.browse(BrowseOptions { hierarchy: Some("search".into()), item_key: Some(first_key.clone()), zone_or_output_id: Some(input.zone_or_output_id.clone()), ..Default::default() }).await;
-            if let Ok(items) = b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(10), ..Default::default() }).await {
-                if let Some(play_key) = items.items.iter().find(|i| i.title.contains("Play")).and_then(|i| i.item_key.as_ref()) {
-                    let _ = b.browse(BrowseOptions { hierarchy: Some("search".into()), item_key: Some(play_key.clone()), zone_or_output_id: Some(input.zone_or_output_id.clone()), ..Default::default() }).await;
-                    // Handle "Play Album" → "Play Now" sub-menu
-                    if let Ok(sub) = b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(5), ..Default::default() }).await {
-                        if let Some(play_now) = sub.items.iter().find(|i| i.title == "Play Now").and_then(|i| i.item_key.as_ref()) {
-                            let _ = b.browse(BrowseOptions { hierarchy: Some("search".into()), item_key: Some(play_now.clone()), zone_or_output_id: Some(input.zone_or_output_id.clone()), ..Default::default() }).await;
+        let max_depth = 5;
+        for depth in 0..max_depth {
+            let _nav = match b.browse(BrowseOptions {
+                hierarchy: Some("search".into()),
+                item_key: Some(next_key.clone()),
+                zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                ..Default::default()
+            }).await {
+                Ok(n) => n,
+                Err(e) => return json_str(serde_json::json!({"error": format!("Browse failed at depth {}: {}", depth, e)})),
+            };
+
+            let page = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(20), ..Default::default() }).await {
+                Ok(r) => r,
+                Err(e) => return json_str(serde_json::json!({"error": format!("Load failed at depth {}: {}", depth, e)})),
+            };
+
+            // Priority 1: trigger a playable action whose submenu contains the requested entry.
+            // "Play Artist" only considered when shuffling (lacks Play Now).
+            let allow_play_artist = shuffle;
+            let playable_action = page.items.iter().find(|i| {
+                let t = i.title.as_str();
+                if allow_play_artist && t == "Play Artist" {
+                    return true;
+                }
+                matches!(
+                    t,
+                    "Play Album" | "Play Now" | "Play Track" | "Play From Here" | "Play Work"
+                )
+            });
+
+            if let Some(action_item) = playable_action {
+                let action_key = match action_item.item_key.clone() {
+                    Some(k) => k,
+                    None => return json_str(serde_json::json!({"error": format!("Action '{}' has no item_key", action_item.title)})),
+                };
+                let action_title = action_item.title.clone();
+
+                let play_result = match b.browse(BrowseOptions {
+                    hierarchy: Some("search".into()),
+                    item_key: Some(action_key),
+                    zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                    ..Default::default()
+                }).await {
+                    Ok(r) => r,
+                    Err(e) => return json_str(serde_json::json!({"error": format!("Play action failed: {}", e)})),
+                };
+
+                // If the action returned a list (action_list), find the submenu entry
+                if play_result.action == "list" {
+                    let sub = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(10), ..Default::default() }).await {
+                        Ok(r) => r,
+                        Err(e) => return json_str(serde_json::json!({"error": format!("Submenu load failed: {}", e)})),
+                    };
+
+                    let entry_key = sub.items.iter().find(|i| i.title == submenu_entry).and_then(|i| i.item_key.clone());
+                    let entry_key = match entry_key {
+                        Some(k) => k,
+                        None => {
+                            let available: Vec<&str> = sub.items.iter().map(|i| i.title.as_str()).collect();
+                            return json_str(serde_json::json!({
+                                "error": format!("'{}' has no '{}' submenu", action_title, submenu_entry),
+                                "available": available,
+                            }));
                         }
+                    };
+
+                    if let Err(e) = b.browse(BrowseOptions {
+                        hierarchy: Some("search".into()),
+                        item_key: Some(entry_key),
+                        zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                        ..Default::default()
+                    }).await {
+                        return json_str(serde_json::json!({"error": format!("Submenu click failed: {}", e)}));
                     }
                 }
+
+                return json_str(serde_json::json!({
+                    "result": result_verb,
+                    "query": input.query,
+                    "top_hit": top_title,
+                    "action": action_title,
+                }));
             }
+
+            // Priority 2: descend into the first list-hinted item.
+            let descend = page.items.iter().find(|i| {
+                i.hint.as_deref() == Some("list") && i.item_key.is_some()
+            });
+
+            next_key = match descend.and_then(|i| i.item_key.clone()) {
+                Some(k) => k,
+                None => {
+                    let titles: Vec<&str> = page.items.iter().map(|i| i.title.as_str()).collect();
+                    return json_str(serde_json::json!({
+                        "error": format!("No playable action and no list items at depth {}", depth),
+                        "top_hit": top_title,
+                        "available": titles,
+                    }));
+                }
+            };
         }
 
-        json_str(serde_json::json!({"result": "Playing", "query": input.query, "top_hit": top_title}))
+        json_str(serde_json::json!({
+            "error": format!("Could not find Play action within {} levels", max_depth),
+            "top_hit": top_title,
+        }))
     }
 }
 

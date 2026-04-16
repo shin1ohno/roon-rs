@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use roon_moo::connection::{ResponseSender, ServiceHandler};
 use roon_moo::MooMessage;
+use roon_moo::connection::{ResponseSender, ServiceHandler};
 use tokio::sync::Mutex;
 
 /// Callback for volume/mute change requests from Roon Core.
@@ -89,10 +89,7 @@ impl VolumeControlService {
                                         .as_str()
                                         .unwrap_or("")
                                         .to_string(),
-                                    mode: body["mode"]
-                                        .as_str()
-                                        .unwrap_or("absolute")
-                                        .to_string(),
+                                    mode: body["mode"].as_str().unwrap_or("absolute").to_string(),
                                     value: body["value"].as_f64().unwrap_or(0.0),
                                 });
                             }
@@ -136,7 +133,10 @@ impl VolumeControlService {
                             })
                             .collect();
                         let _ = responder
-                            .send_complete("Success", Some(serde_json::json!({"controls": controls})))
+                            .send_complete(
+                                "Success",
+                                Some(serde_json::json!({"controls": controls})),
+                            )
                             .await;
                     }
                     _ => {

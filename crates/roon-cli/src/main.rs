@@ -260,22 +260,13 @@ async fn main() -> anyhow::Result<()> {
             commands::discover::disconnect().await?;
         }
         Command::Zone => {
-            commands::discover::select_zone(
-                cli.host.as_deref(),
-                cli.port,
-                cli.timeout,
-            )
-            .await?;
+            commands::discover::select_zone(cli.host.as_deref(), cli.port, cli.timeout).await?;
         }
 
         // Commands that require a connection
         cmd => {
-            let conn = connect::connect_from_config(
-                cli.host.as_deref(),
-                cli.port,
-                cli.timeout,
-            )
-            .await?;
+            let conn =
+                connect::connect_from_config(cli.host.as_deref(), cli.port, cli.timeout).await?;
             let core = &conn.core;
 
             match cmd {
@@ -429,14 +420,8 @@ async fn main() -> anyhow::Result<()> {
                     offset,
                     count,
                 } => {
-                    commands::browse::load(
-                        core,
-                        hierarchy.as_deref(),
-                        offset,
-                        count,
-                        cli.json,
-                    )
-                    .await?;
+                    commands::browse::load(core, hierarchy.as_deref(), offset, count, cli.json)
+                        .await?;
                 }
                 Command::Image {
                     image_key,

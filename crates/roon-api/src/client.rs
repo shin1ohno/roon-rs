@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{Mutex, broadcast};
 
 use crate::connection::ConnectionManager;
 use crate::core::Core;
@@ -160,8 +160,7 @@ impl RoonClient {
             .await;
 
         tokio::spawn(async move {
-            let connected_cores: Arc<Mutex<HashSet<String>>> =
-                Arc::new(Mutex::new(HashSet::new()));
+            let connected_cores: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
 
             while let Ok(discovered) = core_rx.recv().await {
                 {

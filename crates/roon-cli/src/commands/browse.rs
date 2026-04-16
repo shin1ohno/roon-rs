@@ -50,7 +50,10 @@ pub async fn browse(core: &Core, args: BrowseArgs<'_>) -> Result<()> {
     } else {
         println!("Action: {}", result.action);
         if let Some(list) = &result.list {
-            println!("{} ({} items, level {})", list.title, list.count, list.level);
+            println!(
+                "{} ({} items, level {})",
+                list.title, list.count, list.level
+            );
         }
         if let Some(item) = &result.item {
             println!("Item: {}", item.title);

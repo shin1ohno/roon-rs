@@ -40,11 +40,18 @@ pub fn print_outputs(outputs: &[Output], json: bool) {
             .volume
             .as_ref()
             .map(|v| {
-                let muted = if v.is_muted == Some(true) { " [muted]" } else { "" };
+                let muted = if v.is_muted == Some(true) {
+                    " [muted]"
+                } else {
+                    ""
+                };
                 format!(" vol:{:.0}{}", v.value, muted)
             })
             .unwrap_or_default();
-        println!("  {} (zone: {}{})", output.display_name, output.zone_id, vol);
+        println!(
+            "  {} (zone: {}{})",
+            output.display_name, output.zone_id, vol
+        );
     }
 }
 

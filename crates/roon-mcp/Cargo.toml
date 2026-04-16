@@ -1,7 +1,7 @@
 [package]
 name = "roon-mcp"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "MCP server exposing Roon audio system as AI assistant tools"
 repository = "https://github.com/shin1ohno/roon-rs"

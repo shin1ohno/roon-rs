@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use roon_api::{Output, Zone};
 
 use crate::config;
@@ -13,12 +13,20 @@ pub fn resolve_zone<'a>(zones: &'a [Zone], name: &str) -> Result<&'a Zone> {
         .collect();
 
     match matches.len() {
-        0 => bail!("No zone matching '{}'. Available: {}", name, zone_names(zones)),
+        0 => bail!(
+            "No zone matching '{}'. Available: {}",
+            name,
+            zone_names(zones)
+        ),
         1 => Ok(matches[0]),
         _ => bail!(
             "Ambiguous zone '{}'. Matches: {}",
             name,
-            matches.iter().map(|z| z.display_name.as_str()).collect::<Vec<_>>().join(", ")
+            matches
+                .iter()
+                .map(|z| z.display_name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
     }
 }
@@ -35,13 +43,21 @@ pub fn resolve_output<'a>(outputs: &'a [Output], name: &str) -> Result<&'a Outpu
         0 => bail!(
             "No output matching '{}'. Available: {}",
             name,
-            outputs.iter().map(|o| o.display_name.as_str()).collect::<Vec<_>>().join(", ")
+            outputs
+                .iter()
+                .map(|o| o.display_name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         1 => Ok(matches[0]),
         _ => bail!(
             "Ambiguous output '{}'. Matches: {}",
             name,
-            matches.iter().map(|o| o.display_name.as_str()).collect::<Vec<_>>().join(", ")
+            matches
+                .iter()
+                .map(|o| o.display_name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
     }
 }

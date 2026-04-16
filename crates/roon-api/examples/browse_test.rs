@@ -10,7 +10,10 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = std::env::args().collect();
-    let host = args.iter().position(|a| a == "--host").map(|i| &args[i + 1]);
+    let host = args
+        .iter()
+        .position(|a| a == "--host")
+        .map(|i| &args[i + 1]);
     let port: Option<u16> = args
         .iter()
         .position(|a| a == "--port")
@@ -55,7 +58,10 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Action: {}", result.action);
     if let Some(list) = &result.list {
-        println!("List: {} ({} items, level {})", list.title, list.count, list.level);
+        println!(
+            "List: {} ({} items, level {})",
+            list.title, list.count, list.level
+        );
     }
 
     // Load items from root
@@ -71,8 +77,14 @@ async fn main() -> anyhow::Result<()> {
         println!(
             "  {} {}{}",
             item.title,
-            item.subtitle.as_deref().map(|s| format!("— {}", s)).unwrap_or_default(),
-            item.hint.as_deref().map(|h| format!(" [{}]", h)).unwrap_or_default(),
+            item.subtitle
+                .as_deref()
+                .map(|s| format!("— {}", s))
+                .unwrap_or_default(),
+            item.hint
+                .as_deref()
+                .map(|h| format!(" [{}]", h))
+                .unwrap_or_default(),
         );
     }
 
@@ -91,7 +103,10 @@ async fn main() -> anyhow::Result<()> {
 
         println!("Action: {}", result.action);
         if let Some(list) = &result.list {
-            println!("List: {} ({} items, level {})", list.title, list.count, list.level);
+            println!(
+                "List: {} ({} items, level {})",
+                list.title, list.count, list.level
+            );
         }
 
         let items = browse
@@ -107,7 +122,10 @@ async fn main() -> anyhow::Result<()> {
             println!(
                 "  {} {}",
                 item.title,
-                item.subtitle.as_deref().map(|s| format!("— {}", s)).unwrap_or_default(),
+                item.subtitle
+                    .as_deref()
+                    .map(|s| format!("— {}", s))
+                    .unwrap_or_default(),
             );
         }
     }
@@ -141,8 +159,14 @@ async fn main() -> anyhow::Result<()> {
         println!(
             "  {} {}{}",
             item.title,
-            item.subtitle.as_deref().map(|s| format!("— {}", s)).unwrap_or_default(),
-            item.hint.as_deref().map(|h| format!(" [{}]", h)).unwrap_or_default(),
+            item.subtitle
+                .as_deref()
+                .map(|s| format!("— {}", s))
+                .unwrap_or_default(),
+            item.hint
+                .as_deref()
+                .map(|h| format!(" [{}]", h))
+                .unwrap_or_default(),
         );
     }
 

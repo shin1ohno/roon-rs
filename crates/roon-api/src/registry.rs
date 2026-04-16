@@ -29,8 +29,7 @@ pub(crate) async fn perform_handshake(
     store: &Arc<dyn StateStore>,
     pairing: &PairingState,
 ) -> Result<Core, ApiError> {
-    let service_handlers =
-        build_service_handlers(pairing.clone(), store.clone());
+    let service_handlers = build_service_handlers(pairing.clone(), store.clone());
 
     let connection = MooConnection::connect(url, service_handlers).await?;
     let connection = Arc::new(connection);
@@ -104,10 +103,10 @@ pub(crate) async fn perform_handshake(
     let http_port = reg_body["http_port"].as_u64().unwrap_or(0) as u16;
 
     // Step 4: Persist token
-    if let Some(ref token) = new_token {
-        if let Err(e) = store.save_token(&core_id, token) {
-            tracing::warn!("Failed to persist token for core {}: {}", core_id, e);
-        }
+    if let Some(ref token) = new_token
+        && let Err(e) = store.save_token(&core_id, token)
+    {
+        tracing::warn!("Failed to persist token for core {}: {}", core_id, e);
     }
 
     // Extract host from URL for image service
@@ -134,8 +133,7 @@ pub(crate) async fn perform_handshake_with_token(
     store: &Arc<dyn StateStore>,
     pairing: &PairingState,
 ) -> Result<Core, ApiError> {
-    let service_handlers =
-        build_service_handlers(pairing.clone(), store.clone());
+    let service_handlers = build_service_handlers(pairing.clone(), store.clone());
 
     let connection = MooConnection::connect(url, service_handlers).await?;
     let connection = Arc::new(connection);
@@ -176,10 +174,7 @@ pub(crate) async fn perform_handshake_with_token(
         .json_body()
         .ok_or_else(|| ApiError::RegistryFailed("register response has no body".into()))?;
 
-    let core_id = reg_body["core_id"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let core_id = reg_body["core_id"].as_str().unwrap_or("").to_string();
     let core_display_name = reg_body["display_name"]
         .as_str()
         .unwrap_or("Unknown Core")
@@ -191,12 +186,11 @@ pub(crate) async fn perform_handshake_with_token(
     let new_token = reg_body["token"].as_str().map(|s| s.to_string());
     let http_port = reg_body["http_port"].as_u64().unwrap_or(0) as u16;
 
-    if let Some(ref token) = new_token {
-        if !core_id.is_empty() {
-            if let Err(e) = store.save_token(&core_id, token) {
-                tracing::warn!("Failed to persist token: {}", e);
-            }
-        }
+    if let Some(ref token) = new_token
+        && !core_id.is_empty()
+        && let Err(e) = store.save_token(&core_id, token)
+    {
+        tracing::warn!("Failed to persist token: {}", e);
     }
 
     let host = extract_host(url);

@@ -17,13 +17,21 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| PathBuf::from("roon-hub.toml"));
 
     let config = config::Config::load(&config_path)?;
-    tracing::info!("Config loaded: roon={}, mqtt={}:{}",
-        config.roon.extension_id, config.mqtt.host, config.mqtt.port);
+    tracing::info!(
+        "Config loaded: roon={}, mqtt={}:{}",
+        config.roon.extension_id,
+        config.mqtt.host,
+        config.mqtt.port
+    );
 
     // MQTT bridge
     let mqtt_bridge = mqtt::MqttBridge::new(&config.mqtt);
     let (mqtt_client, mut command_rx) = mqtt_bridge.start().await?;
-    tracing::info!("MQTT connected to {}:{}", config.mqtt.host, config.mqtt.port);
+    tracing::info!(
+        "MQTT connected to {}:{}",
+        config.mqtt.host,
+        config.mqtt.port
+    );
 
     // Roon SDK client
     let client = RoonClientBuilder::new(

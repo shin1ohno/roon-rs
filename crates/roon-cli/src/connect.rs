@@ -79,7 +79,10 @@ pub async fn discover_cores(timeout_secs: u64) -> Result<Vec<roon_sood::Discover
         }
         match tokio::time::timeout(remaining, core_rx.recv()).await {
             Ok(Ok(core)) => {
-                if !cores.iter().any(|c: &roon_sood::DiscoveredCore| c.core_id == core.core_id) {
+                if !cores
+                    .iter()
+                    .any(|c: &roon_sood::DiscoveredCore| c.core_id == core.core_id)
+                {
                     cores.push(core);
                 }
             }

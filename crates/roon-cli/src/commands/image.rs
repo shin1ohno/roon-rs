@@ -15,12 +15,10 @@ pub async fn image(
         width,
         height,
         scale: scale.map(|s| s.to_string()),
-        format: format.map(|f| {
-            match f {
-                "jpeg" | "jpg" => "image/jpeg".to_string(),
-                "png" => "image/png".to_string(),
-                other => other.to_string(),
-            }
+        format: format.map(|f| match f {
+            "jpeg" | "jpg" => "image/jpeg".to_string(),
+            "png" => "image/png".to_string(),
+            other => other.to_string(),
         }),
     };
 

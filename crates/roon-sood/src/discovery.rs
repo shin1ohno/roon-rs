@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::{broadcast, watch};
 
-use crate::{parse, serialize_query, SoodType, ROON_CORE_SERVICE_ID, SOOD_MULTICAST_IP, SOOD_PORT};
+use crate::{ROON_CORE_SERVICE_ID, SOOD_MULTICAST_IP, SOOD_PORT, SoodType, parse, serialize_query};
 
 /// Information about a discovered Roon Core on the network.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,10 +132,7 @@ fn build_query_packet() -> Vec<u8> {
         "query_service_id".to_string(),
         Some(ROON_CORE_SERVICE_ID.to_string()),
     );
-    props.insert(
-        "_tid".to_string(),
-        Some(uuid::Uuid::new_v4().to_string()),
-    );
+    props.insert("_tid".to_string(), Some(uuid::Uuid::new_v4().to_string()));
     serialize_query(&props)
 }
 
@@ -145,15 +142,12 @@ fn get_local_ipv4_addrs() -> HashSet<IpAddr> {
     addrs.insert(IpAddr::V4(Ipv4Addr::LOCALHOST));
 
     // Read from /proc/net/fib_trie or fall back to parsing ip addr
-    if let Ok(output) = std::process::Command::new("hostname")
-        .arg("-I")
-        .output()
+    if let Ok(output) = std::process::Command::new("hostname").arg("-I").output()
+        && let Ok(stdout) = std::str::from_utf8(&output.stdout)
     {
-        if let Ok(stdout) = std::str::from_utf8(&output.stdout) {
-            for part in stdout.split_whitespace() {
-                if let Ok(ip) = part.parse::<IpAddr>() {
-                    addrs.insert(ip);
-                }
+        for part in stdout.split_whitespace() {
+            if let Ok(ip) = part.parse::<IpAddr>() {
+                addrs.insert(ip);
             }
         }
     }
@@ -168,8 +162,10 @@ async fn discovery_loop(
     mut cancel_rx: watch::Receiver<bool>,
     paired_rx: watch::Receiver<bool>,
 ) {
-    let multicast_target: SocketAddr =
-        SocketAddr::V4(SocketAddrV4::new(SOOD_MULTICAST_IP.parse().unwrap(), SOOD_PORT));
+    let multicast_target: SocketAddr = SocketAddr::V4(SocketAddrV4::new(
+        SOOD_MULTICAST_IP.parse().unwrap(),
+        SOOD_PORT,
+    ));
     let broadcast_target: SocketAddr =
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::BROADCAST, SOOD_PORT));
 
@@ -310,15 +306,9 @@ mod tests {
             "service_id".to_string(),
             Some(ROON_CORE_SERVICE_ID.to_string()),
         );
-        props.insert(
-            "unique_id".to_string(),
-            Some("test-core-123".to_string()),
-        );
+        props.insert("unique_id".to_string(), Some("test-core-123".to_string()));
         props.insert("http_port".to_string(), Some("9100".to_string()));
-        props.insert(
-            "_tid".to_string(),
-            Some("tid-placeholder".to_string()),
-        );
+        props.insert("_tid".to_string(), Some("tid-placeholder".to_string()));
 
         let mut buf = Vec::new();
         buf.extend_from_slice(b"SOOD\x02R");
@@ -408,13 +398,11 @@ mod tests {
         send.send_to(&packet, recv_addr).await.unwrap();
 
         let mut buf = vec![0u8; 65535];
-        let (len, from) = tokio::time::timeout(
-            std::time::Duration::from_secs(1),
-            recv.recv_from(&mut buf),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (len, from) =
+            tokio::time::timeout(std::time::Duration::from_secs(1), recv.recv_from(&mut buf))
+                .await
+                .unwrap()
+                .unwrap();
 
         let msg = parse(&buf[..len], from).unwrap();
         assert_eq!(msg.msg_type, SoodType::Query);

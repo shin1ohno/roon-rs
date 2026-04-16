@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use roon_moo::connection::{ResponseSender, ServiceHandler};
 use roon_moo::MooMessage;
+use roon_moo::connection::{ResponseSender, ServiceHandler};
 use tokio::sync::Mutex;
 
 use crate::token::StateStore;
@@ -50,11 +50,7 @@ impl PairingState {
     }
 
     /// Handle a `pair` request — switch to the new core and notify subscribers.
-    pub async fn pair_with(
-        &self,
-        new_core_id: &str,
-        store: &dyn StateStore,
-    ) {
+    pub async fn pair_with(&self, new_core_id: &str, store: &dyn StateStore) {
         let mut inner = self.inner.lock().await;
         let old_core_id = inner.paired_core_id.clone();
         inner.paired_core_id = Some(new_core_id.to_string());
@@ -68,7 +64,11 @@ impl PairingState {
         let body = serde_json::json!({"paired_core_id": new_core_id});
         let mut dead = Vec::new();
         for (&req_id, sender) in &inner.subscribers {
-            if sender.send_continue("Changed", Some(body.clone())).await.is_err() {
+            if sender
+                .send_continue("Changed", Some(body.clone()))
+                .await
+                .is_err()
+            {
                 dead.push(req_id);
             }
         }
@@ -102,10 +102,10 @@ impl PairingState {
                         // The requesting core becomes the paired core.
                         // We need the core_id from the connection context — for now,
                         // we extract it from the body if provided, or use the existing logic.
-                        if let Some(body) = msg.json_body() {
-                            if let Some(core_id) = body["core_id"].as_str() {
-                                state.pair_with(core_id, &*store).await;
-                            }
+                        if let Some(body) = msg.json_body()
+                            && let Some(core_id) = body["core_id"].as_str()
+                        {
+                            state.pair_with(core_id, &*store).await;
                         }
                         let _ = responder.send_complete("Success", None).await;
                     }
@@ -115,9 +115,7 @@ impl PairingState {
                             Some(id) => serde_json::json!({"paired_core_id": id}),
                             None => serde_json::json!({}),
                         };
-                        let _ = responder
-                            .send_continue("Subscribed", Some(body))
-                            .await;
+                        let _ = responder.send_continue("Subscribed", Some(body)).await;
                         // Register subscriber
                         state
                             .inner

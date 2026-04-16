@@ -2,9 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
-use roon_api::{
-    ControlAction, MemoryTokenStore, RoonClientBuilder, Zone, ZoneEvent,
-};
+use roon_api::{ControlAction, MemoryTokenStore, RoonClientBuilder, Zone, ZoneEvent};
 
 fn build_moo_response(
     verb: &str,
@@ -125,12 +123,8 @@ async fn mock_roon_core_with_transport() -> std::net::SocketAddr {
                         );
                         sink.send(WsMessage::Binary(update.into())).await.unwrap();
                     } else if name == "com.roonlabs.transport:2/control" {
-                        let resp = build_moo_response(
-                            "COMPLETE",
-                            "Success",
-                            parsed.request_id,
-                            None,
-                        );
+                        let resp =
+                            build_moo_response("COMPLETE", "Success", parsed.request_id, None);
                         sink.send(WsMessage::Binary(resp.into())).await.unwrap();
                     }
                 }
@@ -145,19 +139,16 @@ async fn mock_roon_core_with_transport() -> std::net::SocketAddr {
 async fn test_subscribe_zones_initial_and_changed() {
     let addr = mock_roon_core_with_transport().await;
 
-    let client = RoonClientBuilder::new(
-        "com.test.ext",
-        "Test",
-        "1.0",
-        "Test",
-        "test@test.com",
-    )
-    .token_store(MemoryTokenStore::new())
-    .require_transport()
-    .build()
-    .unwrap();
+    let client = RoonClientBuilder::new("com.test.ext", "Test", "1.0", "Test", "test@test.com")
+        .token_store(MemoryTokenStore::new())
+        .require_transport()
+        .build()
+        .unwrap();
 
-    let core = client.connect(&addr.ip().to_string(), addr.port()).await.unwrap();
+    let core = client
+        .connect(&addr.ip().to_string(), addr.port())
+        .await
+        .unwrap();
     let transport = core.transport();
 
     let mut zone_rx = transport.subscribe_zones().await.unwrap();
@@ -203,24 +194,30 @@ async fn test_subscribe_zones_initial_and_changed() {
 async fn test_transport_control() {
     let addr = mock_roon_core_with_transport().await;
 
-    let client = RoonClientBuilder::new(
-        "com.test.ext",
-        "Test",
-        "1.0",
-        "Test",
-        "test@test.com",
-    )
-    .token_store(MemoryTokenStore::new())
-    .build()
-    .unwrap();
+    let client = RoonClientBuilder::new("com.test.ext", "Test", "1.0", "Test", "test@test.com")
+        .token_store(MemoryTokenStore::new())
+        .build()
+        .unwrap();
 
-    let core = client.connect(&addr.ip().to_string(), addr.port()).await.unwrap();
+    let core = client
+        .connect(&addr.ip().to_string(), addr.port())
+        .await
+        .unwrap();
     let transport = core.transport();
 
     // Control commands should succeed
-    transport.control("zone-1", ControlAction::Play).await.unwrap();
-    transport.control("zone-1", ControlAction::Pause).await.unwrap();
-    transport.control("zone-1", ControlAction::Next).await.unwrap();
+    transport
+        .control("zone-1", ControlAction::Play)
+        .await
+        .unwrap();
+    transport
+        .control("zone-1", ControlAction::Pause)
+        .await
+        .unwrap();
+    transport
+        .control("zone-1", ControlAction::Next)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

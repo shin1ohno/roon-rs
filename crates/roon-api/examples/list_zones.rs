@@ -6,9 +6,7 @@
 //! Or connect directly to a known core:
 //!   cargo run -p roon-api --example list_zones -- --host 192.168.1.10 --port 9100
 
-use roon_api::{
-    ControlAction, FileTokenStore, PlayState, RoonClientBuilder, RoonEvent, ZoneEvent,
-};
+use roon_api::{ControlAction, FileTokenStore, PlayState, RoonClientBuilder, RoonEvent, ZoneEvent};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,11 +50,7 @@ async fn main() -> anyhow::Result<()> {
                     println!("Found core: {}", core_id);
                 }
                 RoonEvent::CorePaired(core) => {
-                    println!(
-                        "Paired with: {} ({})",
-                        core.display_name(),
-                        core.core_id()
-                    );
+                    println!("Paired with: {} ({})", core.display_name(), core.core_id());
                     run_transport(core).await?;
                     break;
                 }

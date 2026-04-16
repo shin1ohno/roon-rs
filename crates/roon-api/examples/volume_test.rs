@@ -3,16 +3,17 @@
 //! Usage:
 //!   cargo run -p roon-api --example volume_test -- --host 192.168.1.20 --port 9330
 
-use roon_api::{
-    FileTokenStore, MuteAction, RoonClientBuilder, VolumeMode, ZoneEvent,
-};
+use roon_api::{FileTokenStore, MuteAction, RoonClientBuilder, VolumeMode, ZoneEvent};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = std::env::args().collect();
-    let host = args.iter().position(|a| a == "--host").map(|i| &args[i + 1]);
+    let host = args
+        .iter()
+        .position(|a| a == "--host")
+        .map(|i| &args[i + 1]);
     let port: Option<u16> = args
         .iter()
         .position(|a| a == "--port")

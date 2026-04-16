@@ -31,7 +31,9 @@ impl MqttBridge {
         }
     }
 
-    pub async fn start(mut self) -> anyhow::Result<(AsyncClient, mpsc::Receiver<(String, String)>)> {
+    pub async fn start(
+        mut self,
+    ) -> anyhow::Result<(AsyncClient, mpsc::Receiver<(String, String)>)> {
         // Subscribe to weave-compatible command topics
         self.client
             .subscribe("service/roon/+/command/+", QoS::AtLeastOnce)
@@ -63,10 +65,7 @@ impl MqttBridge {
 }
 
 /// Publish zone state to service/roon/{zone_id}/state/zone (full JSON).
-pub async fn publish_zone(
-    client: &AsyncClient,
-    zone: &roon_api::Zone,
-) -> anyhow::Result<()> {
+pub async fn publish_zone(client: &AsyncClient, zone: &roon_api::Zone) -> anyhow::Result<()> {
     let topic = format!("service/roon/{}/state/zone", zone.zone_id);
     let payload = serde_json::to_string(zone)?;
     client
@@ -128,10 +127,7 @@ pub async fn publish_seek(
 }
 
 /// Publish all zones.
-pub async fn publish_zones(
-    client: &AsyncClient,
-    zones: &[roon_api::Zone],
-) -> anyhow::Result<()> {
+pub async fn publish_zones(client: &AsyncClient, zones: &[roon_api::Zone]) -> anyhow::Result<()> {
     // Publish zone list
     let summary: Vec<serde_json::Value> = zones
         .iter()

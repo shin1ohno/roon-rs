@@ -4,7 +4,7 @@ use std::sync::Arc;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
@@ -112,8 +112,7 @@ impl MooConnection {
 
         let (ws_sink, ws_source) = ws_stream.split();
 
-        let pending: Arc<Mutex<HashMap<u32, RequestSlot>>> =
-            Arc::new(Mutex::new(HashMap::new()));
+        let pending: Arc<Mutex<HashMap<u32, RequestSlot>>> = Arc::new(Mutex::new(HashMap::new()));
 
         // Channel for outgoing WS frames (from send_request, heartbeat, service responses)
         let (ws_tx, ws_rx) = mpsc::channel::<WsMessage>(64);

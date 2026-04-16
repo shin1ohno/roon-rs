@@ -46,8 +46,8 @@ pub fn serialize_query(props: &HashMap<String, Option<String>>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parse::parse;
     use crate::SoodType;
+    use crate::parse::parse;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
     fn test_addr() -> SocketAddr {
@@ -155,8 +155,8 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use crate::parse::parse;
     use crate::SoodType;
+    use crate::parse::parse;
     use proptest::prelude::*;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 

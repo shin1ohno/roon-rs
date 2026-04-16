@@ -1,7 +1,5 @@
-use anyhow::{bail, Result};
-use roon_api::{
-    BrowseOptions, ControlAction, Core, LoadOptions, MuteAction, SeekMode, VolumeMode,
-};
+use anyhow::{Result, bail};
+use roon_api::{BrowseOptions, ControlAction, Core, LoadOptions, MuteAction, SeekMode, VolumeMode};
 
 use crate::output_format;
 use crate::resolve;
@@ -29,10 +27,10 @@ pub async fn status(
     println!("State: {:?}", zone.state);
     if let Some(np) = &zone.now_playing {
         println!("Now playing: {}", np.one_line.line1);
-        if let Some(two) = &np.two_line {
-            if let Some(line2) = &two.line2 {
-                println!("             {}", line2);
-            }
+        if let Some(two) = &np.two_line
+            && let Some(line2) = &two.line2
+        {
+            println!("             {}", line2);
         }
         if let (Some(pos), Some(len)) = (np.seek_position, np.length) {
             println!("Position: {:.0}s / {:.0}s", pos, len);
@@ -43,20 +41,14 @@ pub async fn status(
     Ok(())
 }
 
-pub async fn zones(
-    core: &Core,
-    json: bool,
-) -> Result<()> {
+pub async fn zones(core: &Core, json: bool) -> Result<()> {
     let transport = core.transport();
     let zones = transport.get_zones().await?;
     output_format::print_zones(&zones, json);
     Ok(())
 }
 
-pub async fn outputs(
-    core: &Core,
-    json: bool,
-) -> Result<()> {
+pub async fn outputs(core: &Core, json: bool) -> Result<()> {
     let transport = core.transport();
     let outputs = transport.get_outputs().await?;
     output_format::print_outputs(&outputs, json);
@@ -137,7 +129,11 @@ pub async fn seek(
         SeekMode::Absolute
     };
     transport.seek(&zid, mode, seconds).await?;
-    println!("Seeked to {}s ({}).", seconds, if relative { "relative" } else { "absolute" });
+    println!(
+        "Seeked to {}s ({}).",
+        seconds,
+        if relative { "relative" } else { "absolute" }
+    );
     Ok(())
 }
 
@@ -170,7 +166,11 @@ pub async fn mute(
     let transport = core.transport();
     let outputs = transport.get_outputs().await?;
     let oid = resolve::get_output_id(&outputs, output_name, output_id_flag)?;
-    let action = if on { MuteAction::Mute } else { MuteAction::Unmute };
+    let action = if on {
+        MuteAction::Mute
+    } else {
+        MuteAction::Unmute
+    };
     transport.mute(&oid, action).await?;
     println!("{}.", if on { "Muted" } else { "Unmuted" });
     Ok(())
@@ -183,11 +183,7 @@ pub async fn pause_all(core: &Core) -> Result<()> {
     Ok(())
 }
 
-pub async fn transfer(
-    core: &Core,
-    from_zone: &str,
-    to_zone: &str,
-) -> Result<()> {
+pub async fn transfer(core: &Core, from_zone: &str, to_zone: &str) -> Result<()> {
     let transport = core.transport();
     let zones = transport.get_zones().await?;
     let from_id = resolve::resolve_zone(&zones, from_zone)?.zone_id.clone();
@@ -288,11 +284,18 @@ async fn search_and_play(
         .await?;
 
     if debug {
-        eprintln!("[DEBUG] Search results (list: {:?}):", items.list.as_ref().map(|l| &l.title));
+        eprintln!(
+            "[DEBUG] Search results (list: {:?}):",
+            items.list.as_ref().map(|l| &l.title)
+        );
         for (i, it) in items.items.iter().enumerate() {
             eprintln!(
                 "[DEBUG]   [{}] title='{}' subtitle={:?} hint={:?} has_key={}",
-                i, it.title, it.subtitle, it.hint, it.item_key.is_some()
+                i,
+                it.title,
+                it.subtitle,
+                it.hint,
+                it.item_key.is_some()
             );
         }
     }
@@ -341,7 +344,11 @@ async fn search_and_play(
             for (i, it) in page.items.iter().enumerate() {
                 eprintln!(
                     "[DEBUG]   depth={} [{}] title='{}' hint={:?} has_key={}",
-                    depth, i, it.title, it.hint, it.item_key.is_some()
+                    depth,
+                    i,
+                    it.title,
+                    it.hint,
+                    it.item_key.is_some()
                 );
             }
         }
@@ -379,7 +386,10 @@ async fn search_and_play(
                 .await?;
 
             if debug {
-                eprintln!("[DEBUG] Play action result: action='{}'", play_result.action);
+                eprintln!(
+                    "[DEBUG] Play action result: action='{}'",
+                    play_result.action
+                );
             }
 
             // If the result is a list (action_list), find "Play Now" submenu
@@ -420,7 +430,11 @@ async fn search_and_play(
                     "'{}' has no '{}' submenu (found: {})",
                     action_item.title,
                     submenu_entry,
-                    sub.items.iter().map(|i| i.title.as_str()).collect::<Vec<_>>().join(", ")
+                    sub.items
+                        .iter()
+                        .map(|i| i.title.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
             }
 
@@ -432,19 +446,22 @@ async fn search_and_play(
 
         // Priority 2: descend into the first list-hinted item (album/track/etc.),
         // skipping action-hinted items that don't give us Play Now access.
-        let descend = page.items.iter().find(|i| {
-            i.hint.as_deref() == Some("list") && i.item_key.is_some()
-        });
+        let descend = page
+            .items
+            .iter()
+            .find(|i| i.hint.as_deref() == Some("list") && i.item_key.is_some());
 
-        next_key = descend
-            .and_then(|i| i.item_key.clone())
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "depth {}: no playable action and no list items to descend into. Items: {}",
-                    depth,
-                    page.items.iter().map(|i| i.title.as_str()).collect::<Vec<_>>().join(", ")
-                )
-            })?;
+        next_key = descend.and_then(|i| i.item_key.clone()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "depth {}: no playable action and no list items to descend into. Items: {}",
+                depth,
+                page.items
+                    .iter()
+                    .map(|i| i.title.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
 
         if debug {
             eprintln!("[DEBUG] Descending into next item with key: {}", next_key);

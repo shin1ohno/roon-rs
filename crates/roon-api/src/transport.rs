@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use roon_moo::connection::MooConnection;
 use roon_moo::MooVerb;
+use roon_moo::connection::MooConnection;
 use tokio::sync::mpsc;
 
 use crate::error::ApiError;
@@ -113,12 +113,11 @@ impl Transport {
                 if msg.verb == MooVerb::Complete {
                     break;
                 }
-                if let Some(body) = msg.json_body() {
-                    if let Some(event) = parse_zone_event(&msg.name, body) {
-                        if tx.send(event).await.is_err() {
-                            break;
-                        }
-                    }
+                if let Some(body) = msg.json_body()
+                    && let Some(event) = parse_zone_event(&msg.name, body)
+                    && tx.send(event).await.is_err()
+                {
+                    break;
                 }
             }
         });
@@ -143,12 +142,11 @@ impl Transport {
                 if msg.verb == MooVerb::Complete {
                     break;
                 }
-                if let Some(body) = msg.json_body() {
-                    if let Some(event) = parse_output_event(&msg.name, body) {
-                        if tx.send(event).await.is_err() {
-                            break;
-                        }
-                    }
+                if let Some(body) = msg.json_body()
+                    && let Some(event) = parse_output_event(&msg.name, body)
+                    && tx.send(event).await.is_err()
+                {
+                    break;
                 }
             }
         });
@@ -381,8 +379,7 @@ impl Transport {
         let body = response
             .json_body()
             .ok_or(ApiError::RegistryFailed("get_zones: no body".into()))?;
-        let zones: Vec<Zone> =
-            serde_json::from_value(body["zones"].clone()).unwrap_or_default();
+        let zones: Vec<Zone> = serde_json::from_value(body["zones"].clone()).unwrap_or_default();
         Ok(zones)
     }
 

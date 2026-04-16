@@ -2,10 +2,10 @@ mod tools;
 
 use std::sync::Arc;
 
-use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
-};
 use rmcp::ServiceExt;
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+};
 use tokio::sync::Mutex;
 
 use roon_api::{FileStateStore, RoonClientBuilder, RoonEvent, Zone, ZoneEvent};

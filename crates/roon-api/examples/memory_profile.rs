@@ -19,9 +19,19 @@ fn get_rss_kb() -> Option<u64> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let host = args.iter().position(|a| a == "--host").map(|i| &args[i + 1]);
-    let port: Option<u16> = args.iter().position(|a| a == "--port").and_then(|i| args[i + 1].parse().ok());
-    let duration_secs: u64 = args.iter().position(|a| a == "--duration").and_then(|i| args[i + 1].parse().ok()).unwrap_or(60);
+    let host = args
+        .iter()
+        .position(|a| a == "--host")
+        .map(|i| &args[i + 1]);
+    let port: Option<u16> = args
+        .iter()
+        .position(|a| a == "--port")
+        .and_then(|i| args[i + 1].parse().ok());
+    let duration_secs: u64 = args
+        .iter()
+        .position(|a| a == "--duration")
+        .and_then(|i| args[i + 1].parse().ok())
+        .unwrap_or(60);
 
     let token_path = dirs_next::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -51,9 +61,16 @@ async fn main() -> anyhow::Result<()> {
     let mut zone_rx = transport.subscribe_zones().await?;
 
     let baseline_rss = get_rss_kb().unwrap_or(0);
-    println!("Baseline RSS: {} KB ({:.1} MB)", baseline_rss, baseline_rss as f64 / 1024.0);
+    println!(
+        "Baseline RSS: {} KB ({:.1} MB)",
+        baseline_rss,
+        baseline_rss as f64 / 1024.0
+    );
     println!("Monitoring for {}s...\n", duration_secs);
-    println!("{:>6}  {:>10}  {:>10}  {:>8}", "Time", "RSS (KB)", "RSS (MB)", "Events");
+    println!(
+        "{:>6}  {:>10}  {:>10}  {:>8}",
+        "Time", "RSS (KB)", "RSS (MB)", "Events"
+    );
 
     let start = std::time::Instant::now();
     let mut event_count: u64 = 0;
@@ -89,9 +106,21 @@ async fn main() -> anyhow::Result<()> {
     println!("\n=== Summary ===");
     println!("Duration: {}s", duration_secs);
     println!("Events received: {}", event_count);
-    println!("Baseline RSS: {} KB ({:.1} MB)", baseline_rss, baseline_rss as f64 / 1024.0);
-    println!("Final RSS:    {} KB ({:.1} MB)", final_rss, final_rss as f64 / 1024.0);
-    println!("Delta:        {:+} KB ({:+.1} MB)", delta, delta as f64 / 1024.0);
+    println!(
+        "Baseline RSS: {} KB ({:.1} MB)",
+        baseline_rss,
+        baseline_rss as f64 / 1024.0
+    );
+    println!(
+        "Final RSS:    {} KB ({:.1} MB)",
+        final_rss,
+        final_rss as f64 / 1024.0
+    );
+    println!(
+        "Delta:        {:+} KB ({:+.1} MB)",
+        delta,
+        delta as f64 / 1024.0
+    );
 
     if delta > 1024 {
         println!("\nWARNING: RSS grew by more than 1 MB — potential memory leak");

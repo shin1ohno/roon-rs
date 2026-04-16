@@ -248,9 +248,8 @@ mod tests {
 
     #[test]
     fn test_parse_extra_headers_preserved() {
-        let raw = make_msg(
-            "MOO/1 COMPLETE Success\nRequest-Id: 0\nLogging: quiet\nX-Custom: value\n\n",
-        );
+        let raw =
+            make_msg("MOO/1 COMPLETE Success\nRequest-Id: 0\nLogging: quiet\nX-Custom: value\n\n");
         let msg = parse(&raw).unwrap();
         assert_eq!(msg.headers.get("Logging").unwrap(), "quiet");
         assert_eq!(msg.headers.get("X-Custom").unwrap(), "value");
@@ -330,8 +329,7 @@ mod tests {
 
     #[test]
     fn test_parse_content_length_zero() {
-        let raw =
-            make_msg("MOO/1 COMPLETE Success\nRequest-Id: 3\nContent-Length: 0\n\n");
+        let raw = make_msg("MOO/1 COMPLETE Success\nRequest-Id: 3\nContent-Length: 0\n\n");
         let msg = parse(&raw).unwrap();
         assert!(msg.body.is_none());
     }
@@ -345,10 +343,7 @@ mod tests {
             body
         ));
         let msg = parse(&raw).unwrap();
-        assert_eq!(
-            msg.service(),
-            Some("com.roonlabs.transport:2")
-        );
+        assert_eq!(msg.service(), Some("com.roonlabs.transport:2"));
         assert_eq!(msg.method(), Some("subscribe_zones"));
         assert_eq!(msg.json_body().unwrap()["subscription_key"], json!(0));
     }

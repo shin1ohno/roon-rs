@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use roon_moo::connection::{ResponseSender, ServiceHandler};
 use roon_moo::MooMessage;
+use roon_moo::connection::{ResponseSender, ServiceHandler};
 use tokio::sync::Mutex;
 
 /// Callback for source control requests from Roon Core.
@@ -106,7 +106,10 @@ impl SourceControlService {
                             })
                             .collect();
                         let _ = responder
-                            .send_complete("Success", Some(serde_json::json!({"controls": controls})))
+                            .send_complete(
+                                "Success",
+                                Some(serde_json::json!({"controls": controls})),
+                            )
                             .await;
                     }
                     _ => {

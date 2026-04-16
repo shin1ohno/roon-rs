@@ -15,18 +15,22 @@ pub mod transport;
 pub mod volume_control;
 pub mod zone;
 
+pub use self::core::Core;
+pub use browse::{
+    Browse, BrowseItem, BrowseList, BrowseOptions, BrowseResult, LoadOptions, LoadResult,
+};
 pub use client::{RoonClient, RoonClientBuilder};
 pub use connection::ConnectionState;
 pub use error::ApiError;
 pub use event::RoonEvent;
-pub use self::core::Core;
-pub use browse::{Browse, BrowseItem, BrowseList, BrowseOptions, BrowseResult, LoadOptions, LoadResult};
 pub use image::{ImageOptions, ImageService};
 pub use output::{Output, SourceControl, Volume};
 pub use pairing::PairingState;
 pub use source_control::{SourceControlDef, SourceControlService, SourceRequest};
 pub use status::StatusService;
-pub use token::{FileStateStore, FileTokenStore, MemoryStateStore, MemoryTokenStore, StateStore, TokenStore};
+pub use token::{
+    FileStateStore, FileTokenStore, MemoryStateStore, MemoryTokenStore, StateStore, TokenStore,
+};
 pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,
 };

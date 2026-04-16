@@ -92,16 +92,16 @@ pub fn parse(buf: &[u8], from: SocketAddr) -> Result<SoodMessage, SoodError> {
     // Post-process: override from address with _replyaddr/_replyport
     let mut result_addr = from;
 
-    if let Some(Some(addr_str)) = props.remove("_replyaddr") {
-        if let Ok(ip) = addr_str.parse::<IpAddr>() {
-            result_addr.set_ip(ip);
-        }
+    if let Some(Some(addr_str)) = props.remove("_replyaddr")
+        && let Ok(ip) = addr_str.parse::<IpAddr>()
+    {
+        result_addr.set_ip(ip);
     }
 
-    if let Some(Some(port_str)) = props.remove("_replyport") {
-        if let Ok(port) = port_str.parse::<u16>() {
-            result_addr.set_port(port);
-        }
+    if let Some(Some(port_str)) = props.remove("_replyport")
+        && let Ok(port) = port_str.parse::<u16>()
+    {
+        result_addr.set_port(port);
     }
 
     Ok(SoodMessage {
@@ -137,7 +137,10 @@ mod tests {
 
         let msg = parse(&buf, test_addr()).unwrap();
         assert_eq!(msg.msg_type, SoodType::Query);
-        assert_eq!(msg.props.get("svc"), Some(&Some("test-service".to_string())));
+        assert_eq!(
+            msg.props.get("svc"),
+            Some(&Some("test-service".to_string()))
+        );
         assert_eq!(msg.from, test_addr());
     }
 
@@ -251,7 +254,10 @@ mod tests {
     #[test]
     fn test_error_invalid_magic() {
         let buf = b"FOOD\x02Q";
-        assert!(matches!(parse(buf, test_addr()), Err(SoodError::InvalidMagic)));
+        assert!(matches!(
+            parse(buf, test_addr()),
+            Err(SoodError::InvalidMagic)
+        ));
     }
 
     #[test]
@@ -271,7 +277,10 @@ mod tests {
         buf.push(b'Q');
         buf.push(0x00); // zero-length name
 
-        assert!(matches!(parse(&buf, test_addr()), Err(SoodError::ZeroLengthName)));
+        assert!(matches!(
+            parse(&buf, test_addr()),
+            Err(SoodError::ZeroLengthName)
+        ));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::config::{self, ServerConfig, ZoneConfig};
 use crate::connect;
@@ -16,7 +16,13 @@ pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
     println!("Found {} Roon Core(s):", cores.len());
     for (i, core) in cores.iter().enumerate() {
         let short_id = &core.core_id[..core.core_id.len().min(8)];
-        println!("  {}) {}:{} ({}...)", i + 1, core.host, core.http_port, short_id);
+        println!(
+            "  {}) {}:{} ({}...)",
+            i + 1,
+            core.host,
+            core.http_port,
+            short_id
+        );
     }
 
     let selected = if cores.len() == 1 {
@@ -35,11 +41,20 @@ pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
     });
     config::save(&cfg)?;
 
-    println!("Default server set: {}:{}", selected.host, selected.http_port);
+    println!(
+        "Default server set: {}:{}",
+        selected.host, selected.http_port
+    );
 
     // Attempt pairing
     eprintln!("Connecting... Approve 'roon-rs CLI' in Roon Settings > Extensions if prompted.");
-    match connect::connect(&selected.host.to_string(), selected.http_port, pairing_timeout_secs).await {
+    match connect::connect(
+        &selected.host.to_string(),
+        selected.http_port,
+        pairing_timeout_secs,
+    )
+    .await
+    {
         Ok(conn) => println!("Paired with: {}", conn.core.display_name()),
         Err(e) => println!(
             "Pairing pending — authorize in Roon Settings > Extensions. ({})",

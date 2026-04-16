@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use roon_moo::connection::{ResponseSender, ServiceHandler};
 use roon_moo::MooMessage;
+use roon_moo::connection::{ResponseSender, ServiceHandler};
 use tokio::sync::Mutex;
 
 /// Status service — reports extension status in Roon's UI.
@@ -44,7 +44,11 @@ impl StatusService {
 
         let mut dead = Vec::new();
         for (&req_id, sender) in &inner.subscribers {
-            if sender.send_continue("Changed", Some(body.clone())).await.is_err() {
+            if sender
+                .send_continue("Changed", Some(body.clone()))
+                .await
+                .is_err()
+            {
                 dead.push(req_id);
             }
         }

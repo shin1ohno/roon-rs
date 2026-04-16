@@ -76,18 +76,18 @@ impl Config {
         if let Ok(v) = std::env::var("ROON_HUB_MQTT_HOST") {
             config.mqtt.host = v;
         }
-        if let Ok(v) = std::env::var("ROON_HUB_MQTT_PORT") {
-            if let Ok(port) = v.parse() {
-                config.mqtt.port = port;
-            }
+        if let Ok(v) = std::env::var("ROON_HUB_MQTT_PORT")
+            && let Ok(port) = v.parse()
+        {
+            config.mqtt.port = port;
         }
         if let Ok(v) = std::env::var("ROON_HUB_ROON_HOST") {
             config.roon.host = Some(v);
         }
-        if let Ok(v) = std::env::var("ROON_HUB_ROON_PORT") {
-            if let Ok(port) = v.parse() {
-                config.roon.port = Some(port);
-            }
+        if let Ok(v) = std::env::var("ROON_HUB_ROON_PORT")
+            && let Ok(port) = v.parse()
+        {
+            config.roon.port = Some(port);
         }
         if let Ok(v) = std::env::var("ROON_HUB_TOPIC_PREFIX") {
             config.mqtt.topic_prefix = v;

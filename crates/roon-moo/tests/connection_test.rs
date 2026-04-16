@@ -14,10 +14,7 @@ use roon_moo::{MooBody, MooMessage, MooVerb};
 async fn mock_ws_server<F, Fut>(handler: F) -> SocketAddr
 where
     F: Fn(
-            SplitSink<
-                tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-                WsMessage,
-            >,
+            SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, WsMessage>,
             SplitStream<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>>,
         ) -> Fut
         + Send
@@ -38,7 +35,12 @@ where
     addr
 }
 
-fn build_moo_response(verb: MooVerb, name: &str, request_id: u32, body: Option<serde_json::Value>) -> Vec<u8> {
+fn build_moo_response(
+    verb: MooVerb,
+    name: &str,
+    request_id: u32,
+    body: Option<serde_json::Value>,
+) -> Vec<u8> {
     let msg = MooMessage {
         verb,
         name: name.to_string(),
@@ -106,12 +108,7 @@ async fn test_subscription_continue_then_complete() {
                     }
 
                     // Send COMPLETE to end
-                    let resp = build_moo_response(
-                        MooVerb::Complete,
-                        "Unsubscribed",
-                        rid,
-                        None,
-                    );
+                    let resp = build_moo_response(MooVerb::Complete, "Unsubscribed", rid, None);
                     sink.send(WsMessage::Binary(resp.into())).await.unwrap();
                 }
             }
@@ -139,9 +136,18 @@ async fn test_subscription_continue_then_complete() {
     assert_eq!(messages.len(), 4);
     assert_eq!(messages[0].verb, MooVerb::Continue);
     assert_eq!(messages[0].name, "Changed");
-    assert_eq!(messages[0].json_body().unwrap()["seq"], serde_json::json!(0));
-    assert_eq!(messages[1].json_body().unwrap()["seq"], serde_json::json!(1));
-    assert_eq!(messages[2].json_body().unwrap()["seq"], serde_json::json!(2));
+    assert_eq!(
+        messages[0].json_body().unwrap()["seq"],
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        messages[1].json_body().unwrap()["seq"],
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        messages[2].json_body().unwrap()["seq"],
+        serde_json::json!(2)
+    );
     assert_eq!(messages[3].verb, MooVerb::Complete);
     assert_eq!(messages[3].name, "Unsubscribed");
 
@@ -156,12 +162,7 @@ async fn test_service_handler_incoming_request() {
         // Wait for the connection to be established, then send a REQUEST to the client
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        let req = build_moo_response(
-            MooVerb::Request,
-            "com.roonlabs.ping:1/ping",
-            0,
-            None,
-        );
+        let req = build_moo_response(MooVerb::Request, "com.roonlabs.ping:1/ping", 0, None);
         sink.send(WsMessage::Binary(req.into())).await.unwrap();
 
         // Read the client's response
@@ -177,14 +178,15 @@ async fn test_service_handler_incoming_request() {
     })
     .await;
 
-    let handler: roon_moo::connection::ServiceHandler = Arc::new(move |msg: MooMessage, responder| {
-        let tx = handler_tx.clone();
-        let method = msg.method().unwrap_or("unknown").to_string();
-        tokio::spawn(async move {
-            tx.send(method).await.unwrap();
-            responder.send_complete("Success", None).await.unwrap();
+    let handler: roon_moo::connection::ServiceHandler =
+        Arc::new(move |msg: MooMessage, responder| {
+            let tx = handler_tx.clone();
+            let method = msg.method().unwrap_or("unknown").to_string();
+            tokio::spawn(async move {
+                tx.send(method).await.unwrap();
+                responder.send_complete("Success", None).await.unwrap();
+            });
         });
-    });
 
     let mut handlers = HashMap::new();
     handlers.insert("com.roonlabs.ping:1".to_string(), handler);
@@ -193,13 +195,10 @@ async fn test_service_handler_incoming_request() {
     let _conn = MooConnection::connect(&url, handlers).await.unwrap();
 
     // Wait for the handler to be called
-    let method = tokio::time::timeout(
-        std::time::Duration::from_secs(2),
-        handler_rx.recv(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let method = tokio::time::timeout(std::time::Duration::from_secs(2), handler_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
 
     assert_eq!(method, "ping");
 }

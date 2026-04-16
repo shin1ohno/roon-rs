@@ -1,13 +1,13 @@
-use rmcp::{schemars, tool, tool_router};
 use rmcp::handler::server::wrapper::Parameters;
+use rmcp::{schemars, tool, tool_router};
 use serde::Deserialize;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use roon_api::{
-    Browse, BrowseOptions, ControlAction, LoadOptions, MuteAction, SeekMode, Transport,
-    VolumeMode, Zone,
+    Browse, BrowseOptions, ControlAction, LoadOptions, MuteAction, SeekMode, Transport, VolumeMode,
+    Zone,
 };
 
 pub struct RoonMcpServer {
@@ -30,7 +30,9 @@ pub struct SeekInput {
     #[serde(default = "default_relative")]
     pub how: String,
 }
-fn default_relative() -> String { "relative".to_string() }
+fn default_relative() -> String {
+    "relative".to_string()
+}
 
 #[derive(Deserialize, schemars::JsonSchema, Default)]
 pub struct VolumeInput {
@@ -39,7 +41,9 @@ pub struct VolumeInput {
     #[serde(default = "default_absolute")]
     pub how: String,
 }
-fn default_absolute() -> String { "absolute".to_string() }
+fn default_absolute() -> String {
+    "absolute".to_string()
+}
 
 #[derive(Deserialize, schemars::JsonSchema, Default)]
 pub struct MuteInput {
@@ -90,55 +94,70 @@ pub struct SearchPlayInput {
 
 #[tool_router(server_handler)]
 impl RoonMcpServer {
-    #[tool(name = "list_zones", description = "List all Roon playback zones with their current state, now playing info, and volume")]
+    #[tool(
+        name = "list_zones",
+        description = "List all Roon playback zones with their current state, now playing info, and volume"
+    )]
     async fn list_zones(&self) -> String {
         let zones = self.zones.lock().await;
-        let summary: Vec<serde_json::Value> = zones.iter().map(|z| {
-            let mut info = serde_json::json!({
-                "zone_id": z.zone_id,
-                "display_name": z.display_name,
-                "state": z.state,
-            });
-            if let Some(np) = &z.now_playing {
-                info["now_playing"] = serde_json::json!(np.one_line.line1);
-                if let Some(len) = np.length { info["length"] = serde_json::json!(len); }
-            }
-            if let Some(pos) = z.seek_position { info["seek_position"] = serde_json::json!(pos); }
-            for output in &z.outputs {
-                if let Some(vol) = &output.volume {
-                    info["volume"] = serde_json::json!(vol.value);
-                    info["is_muted"] = serde_json::json!(vol.is_muted);
+        let summary: Vec<serde_json::Value> = zones
+            .iter()
+            .map(|z| {
+                let mut info = serde_json::json!({
+                    "zone_id": z.zone_id,
+                    "display_name": z.display_name,
+                    "state": z.state,
+                });
+                if let Some(np) = &z.now_playing {
+                    info["now_playing"] = serde_json::json!(np.one_line.line1);
+                    if let Some(len) = np.length {
+                        info["length"] = serde_json::json!(len);
+                    }
                 }
-                info["output_id"] = serde_json::json!(output.output_id);
-            }
-            info
-        }).collect();
+                if let Some(pos) = z.seek_position {
+                    info["seek_position"] = serde_json::json!(pos);
+                }
+                for output in &z.outputs {
+                    if let Some(vol) = &output.volume {
+                        info["volume"] = serde_json::json!(vol.value);
+                        info["is_muted"] = serde_json::json!(vol.is_muted);
+                    }
+                    info["output_id"] = serde_json::json!(output.output_id);
+                }
+                info
+            })
+            .collect();
         json_str(serde_json::json!({"zones": summary}))
     }
 
     #[tool(name = "play", description = "Start playback in a zone")]
     async fn play(&self, Parameters(input): Parameters<ZoneInput>) -> String {
-        self.transport_cmd(&input.zone_or_output_id, ControlAction::Play).await
+        self.transport_cmd(&input.zone_or_output_id, ControlAction::Play)
+            .await
     }
 
     #[tool(name = "pause", description = "Pause playback in a zone")]
     async fn pause(&self, Parameters(input): Parameters<ZoneInput>) -> String {
-        self.transport_cmd(&input.zone_or_output_id, ControlAction::Pause).await
+        self.transport_cmd(&input.zone_or_output_id, ControlAction::Pause)
+            .await
     }
 
     #[tool(name = "stop", description = "Stop playback in a zone")]
     async fn stop(&self, Parameters(input): Parameters<ZoneInput>) -> String {
-        self.transport_cmd(&input.zone_or_output_id, ControlAction::Stop).await
+        self.transport_cmd(&input.zone_or_output_id, ControlAction::Stop)
+            .await
     }
 
     #[tool(name = "next", description = "Skip to next track")]
     async fn next(&self, Parameters(input): Parameters<ZoneInput>) -> String {
-        self.transport_cmd(&input.zone_or_output_id, ControlAction::Next).await
+        self.transport_cmd(&input.zone_or_output_id, ControlAction::Next)
+            .await
     }
 
     #[tool(name = "previous", description = "Skip to previous track")]
     async fn previous(&self, Parameters(input): Parameters<ZoneInput>) -> String {
-        self.transport_cmd(&input.zone_or_output_id, ControlAction::Previous).await
+        self.transport_cmd(&input.zone_or_output_id, ControlAction::Previous)
+            .await
     }
 
     #[tool(name = "pause_all", description = "Pause all zones")]
@@ -158,7 +177,11 @@ impl RoonMcpServer {
         let t = self.transport.lock().await;
         match t.as_ref() {
             Some(t) => {
-                let mode = if input.how == "absolute" { SeekMode::Absolute } else { SeekMode::Relative };
+                let mode = if input.how == "absolute" {
+                    SeekMode::Absolute
+                } else {
+                    SeekMode::Relative
+                };
                 match t.seek(&input.zone_or_output_id, mode, input.seconds).await {
                     Ok(_) => format!("Seeked {}s ({})", input.seconds, input.how),
                     Err(e) => format!("Error: {}", e),
@@ -192,7 +215,11 @@ impl RoonMcpServer {
         let t = self.transport.lock().await;
         match t.as_ref() {
             Some(t) => {
-                let action = if input.action == "unmute" { MuteAction::Unmute } else { MuteAction::Mute };
+                let action = if input.action == "unmute" {
+                    MuteAction::Unmute
+                } else {
+                    MuteAction::Mute
+                };
                 match t.mute(&input.output_id, action).await {
                     Ok(_) => format!("Mute: {}", input.action),
                     Err(e) => format!("Error: {}", e),
@@ -202,11 +229,17 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "transfer_zone", description = "Transfer the current queue from one zone to another")]
+    #[tool(
+        name = "transfer_zone",
+        description = "Transfer the current queue from one zone to another"
+    )]
     async fn transfer_zone(&self, Parameters(input): Parameters<TransferInput>) -> String {
         let t = self.transport.lock().await;
         match t.as_ref() {
-            Some(t) => match t.transfer_zone(&input.from_zone_or_output_id, &input.to_zone_or_output_id).await {
+            Some(t) => match t
+                .transfer_zone(&input.from_zone_or_output_id, &input.to_zone_or_output_id)
+                .await
+            {
                 Ok(_) => "Transferred".into(),
                 Err(e) => format!("Error: {}", e),
             },
@@ -214,11 +247,22 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "change_settings", description = "Change zone settings: shuffle, loop (loop/loop_one/disabled), auto_radio")]
+    #[tool(
+        name = "change_settings",
+        description = "Change zone settings: shuffle, loop (loop/loop_one/disabled), auto_radio"
+    )]
     async fn change_settings(&self, Parameters(input): Parameters<SettingsInput>) -> String {
         let t = self.transport.lock().await;
         match t.as_ref() {
-            Some(t) => match t.change_settings(&input.zone_or_output_id, input.shuffle, input.r#loop.as_deref(), input.auto_radio).await {
+            Some(t) => match t
+                .change_settings(
+                    &input.zone_or_output_id,
+                    input.shuffle,
+                    input.r#loop.as_deref(),
+                    input.auto_radio,
+                )
+                .await
+            {
                 Ok(_) => "Settings updated".into(),
                 Err(e) => format!("Error: {}", e),
             },
@@ -226,7 +270,10 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "browse", description = "Browse the Roon music library. Use hierarchy='browse' for library, 'search' for search. Navigate with item_key. Set input for search queries.")]
+    #[tool(
+        name = "browse",
+        description = "Browse the Roon music library. Use hierarchy='browse' for library, 'search' for search. Navigate with item_key. Set input for search queries."
+    )]
     async fn browse(&self, Parameters(input): Parameters<BrowseInput>) -> String {
         let b = self.browse.lock().await;
         match b.as_ref() {
@@ -248,7 +295,10 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "load", description = "Load items from the current browse list. Use after browse to get items.")]
+    #[tool(
+        name = "load",
+        description = "Load items from the current browse list. Use after browse to get items."
+    )]
     async fn load(&self, Parameters(input): Parameters<LoadInput>) -> String {
         let b = self.browse.lock().await;
         match b.as_ref() {
@@ -268,7 +318,10 @@ impl RoonMcpServer {
         }
     }
 
-    #[tool(name = "search_and_play", description = "Search for music and play the top result. Navigates search → action list → Play Now automatically. Set shuffle=true to shuffle instead.")]
+    #[tool(
+        name = "search_and_play",
+        description = "Search for music and play the top result. Navigates search → action list → Play Now automatically. Set shuffle=true to shuffle instead."
+    )]
     async fn search_and_play(&self, Parameters(input): Parameters<SearchPlayInput>) -> String {
         let b = self.browse.lock().await;
         let b = match b.as_ref() {
@@ -281,24 +334,38 @@ impl RoonMcpServer {
         let result_verb = if shuffle { "Shuffling" } else { "Playing" };
 
         // Step 1: enter search hierarchy with query
-        if let Err(e) = b.browse(BrowseOptions {
-            hierarchy: Some("search".into()),
-            pop_all: Some(true),
-            input: Some(input.query.clone()),
-            zone_or_output_id: Some(input.zone_or_output_id.clone()),
-            ..Default::default()
-        }).await {
+        if let Err(e) = b
+            .browse(BrowseOptions {
+                hierarchy: Some("search".into()),
+                pop_all: Some(true),
+                input: Some(input.query.clone()),
+                zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                ..Default::default()
+            })
+            .await
+        {
             return json_str(serde_json::json!({"error": format!("Search failed: {}", e)}));
         }
 
-        let items = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(10), ..Default::default() }).await {
+        let items = match b
+            .load(LoadOptions {
+                hierarchy: Some("search".into()),
+                count: Some(10),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(r) => r,
             Err(e) => return json_str(serde_json::json!({"error": format!("Load failed: {}", e)})),
         };
 
         let top = match items.items.first() {
             Some(t) => t,
-            None => return json_str(serde_json::json!({"error": format!("No results for '{}'", input.query)})),
+            None => {
+                return json_str(
+                    serde_json::json!({"error": format!("No results for '{}'", input.query)}),
+                );
+            }
         };
         let top_title = top.title.clone();
         let mut next_key = match top.item_key.clone() {
@@ -308,19 +375,37 @@ impl RoonMcpServer {
 
         let max_depth = 5;
         for depth in 0..max_depth {
-            let _nav = match b.browse(BrowseOptions {
-                hierarchy: Some("search".into()),
-                item_key: Some(next_key.clone()),
-                zone_or_output_id: Some(input.zone_or_output_id.clone()),
-                ..Default::default()
-            }).await {
+            let _nav = match b
+                .browse(BrowseOptions {
+                    hierarchy: Some("search".into()),
+                    item_key: Some(next_key.clone()),
+                    zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(n) => n,
-                Err(e) => return json_str(serde_json::json!({"error": format!("Browse failed at depth {}: {}", depth, e)})),
+                Err(e) => {
+                    return json_str(
+                        serde_json::json!({"error": format!("Browse failed at depth {}: {}", depth, e)}),
+                    );
+                }
             };
 
-            let page = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(20), ..Default::default() }).await {
+            let page = match b
+                .load(LoadOptions {
+                    hierarchy: Some("search".into()),
+                    count: Some(20),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(r) => r,
-                Err(e) => return json_str(serde_json::json!({"error": format!("Load failed at depth {}: {}", depth, e)})),
+                Err(e) => {
+                    return json_str(
+                        serde_json::json!({"error": format!("Load failed at depth {}: {}", depth, e)}),
+                    );
+                }
             };
 
             // Priority 1: trigger a playable action whose submenu contains the requested entry.
@@ -340,32 +425,59 @@ impl RoonMcpServer {
             if let Some(action_item) = playable_action {
                 let action_key = match action_item.item_key.clone() {
                     Some(k) => k,
-                    None => return json_str(serde_json::json!({"error": format!("Action '{}' has no item_key", action_item.title)})),
+                    None => {
+                        return json_str(
+                            serde_json::json!({"error": format!("Action '{}' has no item_key", action_item.title)}),
+                        );
+                    }
                 };
                 let action_title = action_item.title.clone();
 
-                let play_result = match b.browse(BrowseOptions {
-                    hierarchy: Some("search".into()),
-                    item_key: Some(action_key),
-                    zone_or_output_id: Some(input.zone_or_output_id.clone()),
-                    ..Default::default()
-                }).await {
+                let play_result = match b
+                    .browse(BrowseOptions {
+                        hierarchy: Some("search".into()),
+                        item_key: Some(action_key),
+                        zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(r) => r,
-                    Err(e) => return json_str(serde_json::json!({"error": format!("Play action failed: {}", e)})),
+                    Err(e) => {
+                        return json_str(
+                            serde_json::json!({"error": format!("Play action failed: {}", e)}),
+                        );
+                    }
                 };
 
                 // If the action returned a list (action_list), find the submenu entry
                 if play_result.action == "list" {
-                    let sub = match b.load(LoadOptions { hierarchy: Some("search".into()), count: Some(10), ..Default::default() }).await {
+                    let sub = match b
+                        .load(LoadOptions {
+                            hierarchy: Some("search".into()),
+                            count: Some(10),
+                            ..Default::default()
+                        })
+                        .await
+                    {
                         Ok(r) => r,
-                        Err(e) => return json_str(serde_json::json!({"error": format!("Submenu load failed: {}", e)})),
+                        Err(e) => {
+                            return json_str(
+                                serde_json::json!({"error": format!("Submenu load failed: {}", e)}),
+                            );
+                        }
                     };
 
-                    let entry_key = sub.items.iter().find(|i| i.title == submenu_entry).and_then(|i| i.item_key.clone());
+                    let entry_key = sub
+                        .items
+                        .iter()
+                        .find(|i| i.title == submenu_entry)
+                        .and_then(|i| i.item_key.clone());
                     let entry_key = match entry_key {
                         Some(k) => k,
                         None => {
-                            let available: Vec<&str> = sub.items.iter().map(|i| i.title.as_str()).collect();
+                            let available: Vec<&str> =
+                                sub.items.iter().map(|i| i.title.as_str()).collect();
                             return json_str(serde_json::json!({
                                 "error": format!("'{}' has no '{}' submenu", action_title, submenu_entry),
                                 "available": available,
@@ -373,13 +485,18 @@ impl RoonMcpServer {
                         }
                     };
 
-                    if let Err(e) = b.browse(BrowseOptions {
-                        hierarchy: Some("search".into()),
-                        item_key: Some(entry_key),
-                        zone_or_output_id: Some(input.zone_or_output_id.clone()),
-                        ..Default::default()
-                    }).await {
-                        return json_str(serde_json::json!({"error": format!("Submenu click failed: {}", e)}));
+                    if let Err(e) = b
+                        .browse(BrowseOptions {
+                            hierarchy: Some("search".into()),
+                            item_key: Some(entry_key),
+                            zone_or_output_id: Some(input.zone_or_output_id.clone()),
+                            ..Default::default()
+                        })
+                        .await
+                    {
+                        return json_str(
+                            serde_json::json!({"error": format!("Submenu click failed: {}", e)}),
+                        );
                     }
                 }
 
@@ -392,9 +509,10 @@ impl RoonMcpServer {
             }
 
             // Priority 2: descend into the first list-hinted item.
-            let descend = page.items.iter().find(|i| {
-                i.hint.as_deref() == Some("list") && i.item_key.is_some()
-            });
+            let descend = page
+                .items
+                .iter()
+                .find(|i| i.hint.as_deref() == Some("list") && i.item_key.is_some());
 
             next_key = match descend.and_then(|i| i.item_key.clone()) {
                 Some(k) => k,

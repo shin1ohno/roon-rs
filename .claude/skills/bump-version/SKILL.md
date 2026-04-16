@@ -1,0 +1,127 @@
+---
+name: bump-version
+description: Synchronously bump all crate versions + Roon Extension display_version + path dep versions in the roon-rs workspace. Runs build/test/clippy to verify, then stages changes for commit.
+user-invocable: true
+allowed-tools: ["Read", "Edit", "Bash", "Grep"]
+argument-hint: "<new-version>"
+---
+
+# Bump Version Skill
+
+## Purpose
+
+Bump the roon-rs workspace to a new unified version. Updates all three categories of version strings atomically:
+
+1. Package versions in each crate's `Cargo.toml`
+2. Path dependency version constraints in `Cargo.toml` (e.g., `roon-api = { path = "...", version = "X.Y.Z" }`)
+3. Roon Extension `display_version` string passed to `RoonClientBuilder::new` in application source code
+
+After editing, runs `cargo build/test/clippy` and stages all changes. Does NOT commit or tag — user reviews the diff and decides.
+
+## Argument Parsing
+
+`$ARGUMENTS` is the target version (semver, e.g., `0.2.0`, `1.0.0-rc.1`). Required.
+
+If no argument, print usage and exit:
+```
+Usage: /bump-version <new-version>
+Example: /bump-version 0.2.0
+```
+
+## Step 1: Detect Current Version
+
+Read `crates/roon-api/Cargo.toml` and extract the `version = "..."` line from `[package]`. This is the reference "current version". If any other crate has a different version (e.g., `roon-mcp` was already bumped independently), warn the user and ask whether to:
+- **Unify everything to the new target** (recommended)
+- **Abort** and let the user sort it out first
+
+Use AskUserQuestion for this.
+
+## Step 2: Update Package Versions
+
+Update `version = "..."` in `[package]` section of these 6 Cargo.toml files:
+
+| File | Current Line |
+|---|---|
+| `crates/roon-moo/Cargo.toml` | `version = "<current>"` |
+| `crates/roon-sood/Cargo.toml` | `version = "<current>"` |
+| `crates/roon-api/Cargo.toml` | `version = "<current>"` |
+| `crates/roon-cli/Cargo.toml` | `version = "<current>"` |
+| `crates/roon-hub/Cargo.toml` | `version = "<current>"` |
+| `crates/roon-mcp/Cargo.toml` | `version = "<current>"` |
+
+Use `Edit` tool with exact string match. The `version = "X.Y.Z"` line appears in `[package]` section near the top and is unique per file (only one `version = "..."` at file level).
+
+## Step 3: Update Path Dependency Versions
+
+Update internal workspace dependencies (format: `name = { path = "...", version = "X.Y.Z" }`). Use `replace_all = true` on each file since multiple internal deps may share the same version:
+
+| File | Internal deps to update |
+|---|---|
+| `crates/roon-api/Cargo.toml` | `roon-moo`, `roon-sood` (deps + dev-deps) |
+| `crates/roon-cli/Cargo.toml` | `roon-api`, `roon-sood` |
+| `crates/roon-hub/Cargo.toml` | `roon-api` |
+| `crates/roon-mcp/Cargo.toml` | `roon-api` |
+
+For each file, run:
+```
+grep -n 'version = "<current>"' <file>
+```
+to confirm which lines are path deps (not the `[package]` version which was handled in Step 2). Then edit those specific lines.
+
+## Step 4: Update Roon Extension display_version
+
+The `display_version` is the 3rd positional argument to `RoonClientBuilder::new(...)`. Update these application source files:
+
+| File | Line context |
+|---|---|
+| `crates/roon-cli/src/connect.rs` | Inside `RoonClientBuilder::new(...)` — the `"X.Y.Z"` string literal on its own line |
+| `crates/roon-mcp/src/main.rs` | Inside `RoonClientBuilder::new(...)` — the `"X.Y.Z"` string literal on its own line |
+
+**Do NOT touch**:
+- `crates/roon-api/examples/*.rs` — reference examples, identity stays stable
+- `crates/roon-api/tests/*.rs` — test fixtures use "1.0" / "1.0.0" as arbitrary identifiers
+- `crates/roon-hub/src/main.rs` — reads `display_version` from TOML config, no hardcoded string
+
+Locate the line with `Grep` (pattern: `"<current>"` inside the 5-line block after `RoonClientBuilder::new`) and use `Edit` with enough context to match uniquely.
+
+## Step 5: Verify
+
+Run in sequence (stop on first failure):
+
+```sh
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --tests -- -D warnings
+```
+
+If anything fails, DO NOT stage changes. Report the failure to the user for inspection.
+
+## Step 6: Stage and Report
+
+If all verifications pass:
+
+```sh
+git add crates/*/Cargo.toml crates/roon-cli/src/connect.rs crates/roon-mcp/src/main.rs
+git diff --cached --stat
+git diff --cached
+```
+
+Report to the user:
+- Summary of changes (from → to)
+- `git diff --cached --stat` output
+- Suggested commit message:
+  ```
+  release: bump version to <new-version>
+
+  Sync all crate versions, path dep constraints, and Roon Extension
+  display_version to <new-version> in preparation for v<new-version> release.
+  ```
+- Remind the user: after commit, tag with `git tag v<new-version> && git push origin v<new-version>` to trigger cargo-dist release + crates.io publish workflows.
+
+Do NOT commit or tag automatically — user reviews first.
+
+## Failure Modes
+
+- **Pattern not found**: If `Edit` fails because the expected string isn't found, the file may have been manually edited. Stop, show the user the actual file contents around the expected location, and ask how to proceed.
+- **Version mismatch detected in Step 1**: Surfaced via AskUserQuestion — user decides.
+- **Build/test/clippy failure in Step 5**: Leave files modified but do not stage. User can inspect + fix, or `git checkout .` to discard.

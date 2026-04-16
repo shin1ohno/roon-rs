@@ -16,6 +16,13 @@ pub struct DiscoveredCore {
     pub host: IpAddr,
     /// TCP port for the MOO/WebSocket API endpoint.
     pub http_port: u16,
+    /// Human-readable core name broadcast in the SOOD response (e.g., "home"),
+    /// if present. Roon Core always includes this in practice but the SOOD
+    /// spec marks it as optional.
+    pub name: Option<String>,
+    /// Display version of the core (e.g., "2.65 (build 1648) earlyaccess"),
+    /// if present in the SOOD response.
+    pub display_version: Option<String>,
 }
 
 /// SOOD network discovery for Roon Cores.
@@ -279,6 +286,8 @@ fn process_response(
     let core_id = msg.props.get("unique_id")?.as_ref()?.clone();
     let http_port_str = msg.props.get("http_port")?.as_ref()?;
     let http_port: u16 = http_port_str.parse().ok()?;
+    let name = msg.props.get("name").and_then(|v| v.clone());
+    let display_version = msg.props.get("display_version").and_then(|v| v.clone());
 
     // Localhost detection: if the response IP is one of our own addresses,
     // connect to 127.0.0.1 instead (avoids loopback issues)
@@ -292,6 +301,8 @@ fn process_response(
         core_id,
         host,
         http_port,
+        name,
+        display_version,
     })
 }
 

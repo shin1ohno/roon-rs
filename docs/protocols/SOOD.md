@@ -76,12 +76,21 @@ Sent by services in reply to a query.
 
 Standard response properties:
 
-| Property       | Description                                           |
-|----------------|-------------------------------------------------------|
-| `service_id`   | UUID of the service                                   |
-| `unique_id`    | Unique identifier for this specific service instance  |
-| `http_port`    | TCP port for the MOO/WebSocket API endpoint           |
-| `_tid`         | Echoed transaction ID from the query                  |
+| Property          | Description                                              |
+|-------------------|----------------------------------------------------------|
+| `service_id`      | UUID of the service                                      |
+| `unique_id`       | Unique identifier for this specific service instance     |
+| `http_port`       | TCP port for the MOO/WebSocket API endpoint              |
+| `_tid`            | Echoed transaction ID from the query                     |
+
+Additional properties observed in real Roon Core responses (always present in practice, but should be treated as optional by clients):
+
+| Property          | Description                                                 |
+|-------------------|-------------------------------------------------------------|
+| `name`            | Human-readable core name (e.g., "home", "Rhein Z1 V2")      |
+| `display_version` | Core version string (e.g., "2.65 (build 1648) earlyaccess") |
+| `tcp_port`        | Legacy/alternate TCP port                                   |
+| `https_port`      | TLS endpoint port                                           |
 
 ## Reserved Properties
 

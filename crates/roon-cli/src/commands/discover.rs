@@ -15,13 +15,13 @@ pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
 
     println!("Found {} Roon Core(s):", cores.len());
     for (i, core) in cores.iter().enumerate() {
-        let short_id = &core.core_id[..core.core_id.len().min(8)];
+        let label = core.name.as_deref().unwrap_or("(unnamed)");
         println!(
-            "  {}) {}:{} ({}...)",
+            "  {}) {} — {}:{}",
             i + 1,
+            label,
             core.host,
-            core.http_port,
-            short_id
+            core.http_port
         );
     }
 
@@ -37,7 +37,10 @@ pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
     cfg.server = Some(ServerConfig {
         host: selected.host.to_string(),
         port: selected.http_port,
-        name: selected.core_id.clone(),
+        name: selected
+            .name
+            .clone()
+            .unwrap_or_else(|| selected.core_id.clone()),
     });
     config::save(&cfg)?;
 

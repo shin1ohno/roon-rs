@@ -89,12 +89,13 @@ Locate the line with `Grep` (pattern: `"<current>"` inside the 5-line block afte
 Run in sequence (stop on first failure):
 
 ```sh
+cargo fmt --all
 cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace --tests -- -D warnings
 ```
 
-If anything fails, DO NOT stage changes. Report the failure to the user for inspection.
+If anything fails, DO NOT stage changes. Report the failure to the user for inspection. If clippy has autofixable warnings, run `cargo clippy --workspace --tests --fix --allow-dirty` and re-run fmt, then re-verify.
 
 ## Step 6: Stage and Report
 

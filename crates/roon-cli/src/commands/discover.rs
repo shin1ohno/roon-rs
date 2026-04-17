@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use anyhow::{Result, bail};
 
-use crate::config::{self, ServerConfig, ZoneConfig};
+use crate::config::{self, OutputConfig, ServerConfig, ZoneConfig};
 use crate::connect;
 
 pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
@@ -66,6 +66,7 @@ pub async fn disconnect() -> Result<()> {
     let mut cfg = config::load().unwrap_or_default();
     cfg.server = None;
     cfg.zone = None;
+    cfg.output = None;
     config::save(&cfg)?;
     println!("Default server cleared.");
     Ok(())
@@ -110,6 +111,42 @@ pub async fn select_zone(
     config::save(&cfg)?;
 
     println!("Default zone set: {}", selected.display_name);
+    Ok(())
+}
+
+pub async fn select_output(
+    host_override: Option<&str>,
+    port_override: Option<u16>,
+    timeout_secs: u64,
+) -> Result<()> {
+    let conn = connect::connect_from_config(host_override, port_override, timeout_secs).await?;
+    let transport = conn.core.transport();
+    let outputs: Vec<roon_api::Output> = transport.get_outputs().await?;
+
+    if outputs.is_empty() {
+        bail!("No outputs available.");
+    }
+
+    println!("Outputs:");
+    for (i, output) in outputs.iter().enumerate() {
+        println!("  {}) {}", i + 1, output.display_name);
+    }
+
+    let idx = if outputs.len() == 1 {
+        println!("Auto-selecting the only output.");
+        0
+    } else {
+        prompt_selection(outputs.len())?
+    };
+
+    let selected = &outputs[idx];
+    let mut cfg = config::load()?;
+    cfg.output = Some(OutputConfig {
+        name: selected.display_name.clone(),
+    });
+    config::save(&cfg)?;
+
+    println!("Default output set: {}", selected.display_name);
     Ok(())
 }
 

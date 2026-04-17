@@ -82,9 +82,12 @@ pub fn get_zone_id(
     bail!("No default zone. Run `roon zone` first, or use --zone.")
 }
 
-/// Get output_id from --output/--output-id flags.
+/// Get output_id from --output/--output-id flags, falling back to:
+///   1. The `[output]` entry in cli.toml
+///   2. The default zone's single output (when the zone has exactly one)
 pub fn get_output_id(
     outputs: &[Output],
+    zones: &[Zone],
     output_name: Option<&str>,
     output_id: Option<&str>,
 ) -> Result<String> {
@@ -94,7 +97,32 @@ pub fn get_output_id(
     if let Some(name) = output_name {
         return Ok(resolve_output(outputs, name)?.output_id.clone());
     }
-    bail!("--output or --output-id is required.")
+    let cfg = config::load()?;
+    if let Some(oc) = &cfg.output {
+        return Ok(resolve_output(outputs, &oc.name)?.output_id.clone());
+    }
+    if let Some(zc) = &cfg.zone {
+        let zone = resolve_zone(zones, &zc.name)?;
+        match zone.outputs.as_slice() {
+            [single] => return Ok(single.output_id.clone()),
+            [] => bail!(
+                "Default zone '{}' has no outputs. Pick one with `roon output`, or pass --output / --output-id.",
+                zone.display_name
+            ),
+            many => bail!(
+                "Default zone '{}' has {} grouped outputs ({}). Pick one with `roon output`, or pass --output / --output-id.",
+                zone.display_name,
+                many.len(),
+                many.iter()
+                    .map(|o| o.display_name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        }
+    }
+    bail!(
+        "No default output. Run `roon output` first, or pass --output / --output-id, or pick a zone with a single output via `roon zone`."
+    )
 }
 
 fn zone_names(zones: &[Zone]) -> String {

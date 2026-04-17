@@ -146,7 +146,8 @@ pub async fn volume(
 ) -> Result<()> {
     let transport = core.transport();
     let outputs = transport.get_outputs().await?;
-    let oid = resolve::get_output_id(&outputs, output_name, output_id_flag)?;
+    let zones = transport.get_zones().await?;
+    let oid = resolve::get_output_id(&outputs, &zones, output_name, output_id_flag)?;
     let mode = if relative {
         VolumeMode::Relative
     } else {
@@ -165,7 +166,8 @@ pub async fn mute(
 ) -> Result<()> {
     let transport = core.transport();
     let outputs = transport.get_outputs().await?;
-    let oid = resolve::get_output_id(&outputs, output_name, output_id_flag)?;
+    let zones = transport.get_zones().await?;
+    let oid = resolve::get_output_id(&outputs, &zones, output_name, output_id_flag)?;
     let action = if on {
         MuteAction::Mute
     } else {

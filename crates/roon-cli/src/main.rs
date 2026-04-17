@@ -44,6 +44,9 @@ enum Command {
     /// Select default zone
     Zone,
 
+    /// Select default output (used by volume/mute when --output is omitted)
+    Output,
+
     /// Show playback status of the default (or specified) zone
     Status {
         #[arg(long)]
@@ -262,6 +265,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Zone => {
             commands::discover::select_zone(cli.host.as_deref(), cli.port, cli.timeout).await?;
         }
+        Command::Output => {
+            commands::discover::select_output(cli.host.as_deref(), cli.port, cli.timeout).await?;
+        }
 
         // Commands that require a connection
         cmd => {
@@ -443,7 +449,10 @@ async fn main() -> anyhow::Result<()> {
                     .await?;
                 }
                 // Already handled above
-                Command::Discover { .. } | Command::Disconnect | Command::Zone => unreachable!(),
+                Command::Discover { .. }
+                | Command::Disconnect
+                | Command::Zone
+                | Command::Output => unreachable!(),
             }
         }
     }

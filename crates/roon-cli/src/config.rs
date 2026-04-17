@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct CliConfig {
     pub server: Option<ServerConfig>,
     pub zone: Option<ZoneConfig>,
+    pub output: Option<OutputConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +19,11 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZoneConfig {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputConfig {
     pub name: String,
 }
 

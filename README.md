@@ -49,14 +49,20 @@ roon discover
 # 2. Pick a default zone.
 roon zone
 
-# 3. Play.
+# 3. (Optional) Pick a default output. Used by volume/mute when --output is omitted.
+#    If skipped, volume/mute fall back to the default zone's output when the zone has only one.
+roon output
+
+# 4. Play.
 roon play                          # resume playback
 roon play -A "Miles Davis"         # search artist and play
 roon play -a "Kind of Blue"        # search album and play
 roon play -A "Miles Davis" -s      # shuffle all tracks from an artist
 roon pause / stop / next / previous
+roon volume 30                     # uses default output (or default zone's only output)
+roon mute on                       # same fallback chain
 
-# 4. Inspect.
+# 5. Inspect.
 roon status                        # current zone's now playing
 roon zones --json                  # all zones as JSON
 ```

@@ -41,6 +41,50 @@ pub fn token_path() -> PathBuf {
         .join("tokens.json")
 }
 
+fn session_path(key: &str) -> PathBuf {
+    let sanitized: String = key
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    dirs_next::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("roon-rs")
+        .join("sessions")
+        .join(format!("{}.toml", sanitized))
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SessionState {
+    pub hierarchy: Option<String>,
+}
+
+pub fn load_session(key: &str) -> SessionState {
+    let path = session_path(key);
+    if !path.exists() {
+        return SessionState::default();
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_session(key: &str, state: &SessionState) -> Result<()> {
+    let path = session_path(key);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let content = toml::to_string_pretty(state)?;
+    std::fs::write(&path, content)?;
+    Ok(())
+}
+
 pub fn load() -> Result<CliConfig> {
     let path = config_path();
     if !path.exists() {

@@ -69,6 +69,91 @@ roon zones --json                  # all zones as JSON
 
 Full command list: `roon --help`.
 
+## Machine-readable integration (`watch` / `browse` / `search` / `play-item`)
+
+These four commands emit JSON and are designed to be driven by another program (for example, a Neovim plugin or a TUI). The non-trivial idea is that browse/search state lives on the Roon Core and is keyed by a `--session` string you choose. Pass the same session key to successive calls to navigate a cursor; use different keys for independent cursors (telescope-style incremental search vs. neo-tree-style expand, for example).
+
+### `roon watch` — streaming zone/output changes
+
+Emits one JSON object per line (NDJSON). Default output:
+
+```sh
+roon watch                  # all events, seek throttled to 1 Hz per zone
+roon watch --no-initial     # skip the one-shot initial snapshot
+roon watch --seek-hz 0      # disable seek throttle (every tick)
+```
+
+Schema (`"schema": 1`):
+
+| `event`          | fields (besides `schema` + `ts`)      | meaning                       |
+| ---------------- | ------------------------------------- | ----------------------------- |
+| `initial`        | `zones: [Zone]`, `outputs: [Output]`  | one-shot on start             |
+| `zone_added`     | `zone: Zone`                          |                               |
+| `zone_changed`   | `zone: Zone`                          |                               |
+| `zone_removed`   | `zone_id: String`                     |                               |
+| `zone_seeked`    | `zone_id`, `seek_position`, `queue_time_remaining` | throttled per `--seek-hz` |
+| `output_added`   | `output: Output`                      |                               |
+| `output_changed` | `output: Output`                      |                               |
+| `output_removed` | `output_id: String`                   |                               |
+
+Ctrl-C and a broken pipe both exit `0`. A stdout write error (other than broken pipe) exits `2`.
+
+### `roon browse` — one-shot browse+load pair
+
+```sh
+roon browse --session nvim-neotree --hierarchy albums --pop-all
+roon browse --session nvim-neotree --item-key <key>           # drill
+roon browse --session nvim-neotree --offset 100 --count 50    # paginate
+```
+
+Each invocation does `browse` followed by `load` against the given session and prints the loaded list:
+
+```json
+{
+  "session": "nvim-neotree",
+  "list":  { "title": "Albums", "level": 1, "count": 1287, "subtitle": null, "hint": null, "image_key": null },
+  "items": [ { "item_key": "4:28", "title": "In Rainbows", "subtitle": "Radiohead",
+               "image_key": "...", "hint": "list", "input_prompt": null } ],
+  "offset": 0,
+  "total": 1287
+}
+```
+
+Roon requires a `hierarchy` on every browse/load call. The first call that establishes a hierarchy caches it in `~/.config/roon-rs/sessions/<session>.toml`, so later drills on the same session do not need `--hierarchy`.
+
+### `roon search` — thin wrapper
+
+```sh
+roon search --session nvim-telescope --input "radiohead"
+```
+
+Uses the `search` hierarchy with `pop_all=true` so each call returns fresh results. Output schema is identical to `browse`. The Roon `search` hierarchy returns header items (`hint: "header"`) mixed with result items; filter them client-side if you want a flat list.
+
+### `roon play-item` — play / queue / start-radio
+
+```sh
+roon play-item --session nvim-neotree --item-key <key> --zone Qutest
+roon play-item --session s --item-key <key> --action queue
+```
+
+`<key>` is an `item_key` from a preceding `browse`/`search` call in the same session — typically an `action_list`-hint item such as "Play Album". `play-item` drills into it to get the action list, then invokes `Play Now` / `Queue` / `Start Radio` per `--action` (default `auto` prefers `Play Now`). The Roon Core needs a zone target, so pass `--zone` / `--zone-id` or rely on the default `roon zone`. Output on success:
+
+```json
+{"ok":true,"played":{"title":"Play Now","item_key":"30:0"}}
+```
+
+On no matching action, exit code `3` and:
+
+```json
+{"error":"no matching action","available":["Go Back"]}
+```
+
+### Session semantics
+
+- Pick your own session keys. One cursor per key; use different keys when you want independent cursors.
+- Item keys are only valid within the session that produced them. Pass the same `--session` to the follow-up `browse` / `play-item` call.
+- The session's hierarchy is cached on disk; delete `~/.config/roon-rs/sessions/<key>.toml` to reset.
+
 ## Use the SDK
 
 ```toml

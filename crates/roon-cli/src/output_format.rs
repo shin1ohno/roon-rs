@@ -1,4 +1,4 @@
-use roon_api::{BrowseItem, BrowseList, Output, Zone};
+use roon_api::{Output, Zone};
 use serde::Serialize;
 
 pub fn print_zones(zones: &[Zone], json: bool) {
@@ -52,29 +52,6 @@ pub fn print_outputs(outputs: &[Output], json: bool) {
             "  {} (zone: {}{})",
             output.display_name, output.zone_id, vol
         );
-    }
-}
-
-pub fn print_browse_items(list: Option<&BrowseList>, items: &[BrowseItem], json: bool) {
-    if json {
-        print_json(items);
-        return;
-    }
-    if let Some(l) = list {
-        println!("{} ({} items)", l.title, l.count);
-    }
-    for item in items {
-        let subtitle = item
-            .subtitle
-            .as_deref()
-            .map(|s| format!(" — {}", s))
-            .unwrap_or_default();
-        let key = item
-            .item_key
-            .as_deref()
-            .map(|k| format!(" [{}]", k))
-            .unwrap_or_default();
-        println!("  {}{}{}", item.title, subtitle, key);
     }
 }
 

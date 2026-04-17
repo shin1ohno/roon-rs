@@ -196,30 +196,81 @@ enum Command {
         outputs: Vec<String>,
     },
 
-    /// Browse Roon's music library
+    /// Browse Roon's music library (JSON, one invocation = one browse+load pair).
     Browse {
+        /// Browse session key (default: "roon-cli-browse"). Pass the same key to
+        /// play-item for follow-up actions on the same cursor.
+        #[arg(long, default_value = "roon-cli-browse")]
+        session: String,
+        /// Hierarchy to browse: browse, playlists, albums, artists, genres,
+        /// composers, internet_radio, settings. Omit to stay in the current
+        /// hierarchy.
         #[arg(long)]
         hierarchy: Option<String>,
-        #[arg(long)]
-        zone: Option<String>,
-        #[arg(long)]
-        zone_id: Option<String>,
+        /// Drill into an item by its item_key.
         #[arg(long)]
         item_key: Option<String>,
-        #[arg(long)]
-        input: Option<String>,
+        /// Reset the session cursor to the hierarchy root.
         #[arg(long)]
         pop_all: bool,
+        /// Pop N levels from the cursor.
+        #[arg(long)]
+        pop_levels: Option<u32>,
+        /// Refresh the current list on the Core.
+        #[arg(long)]
+        refresh: bool,
+        /// Pagination offset.
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+        /// Number of items to return.
+        #[arg(long, default_value_t = 100)]
+        count: u32,
+        /// Fulfill an input_prompt item.
+        #[arg(long)]
+        input: Option<String>,
+        /// Zone name (passed as zone_or_output_id — Roon needs this for actions).
+        #[arg(long)]
+        zone: Option<String>,
+        /// Zone ID (overrides --zone).
+        #[arg(long)]
+        zone_id: Option<String>,
     },
 
-    /// Load items from current browse list
-    Load {
+    /// Search across Roon's library (thin wrapper over browse hierarchy=search).
+    Search {
+        /// Search text.
         #[arg(long)]
-        hierarchy: Option<String>,
+        input: String,
+        /// Session key (default: "roon-cli-search").
+        #[arg(long, default_value = "roon-cli-search")]
+        session: String,
+        /// Hierarchy (default: "search" — cross-category).
+        #[arg(long, default_value = "search")]
+        hierarchy: String,
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+        #[arg(long, default_value_t = 50)]
+        count: u32,
+    },
+
+    /// Play or queue an item from a browse/search session.
+    PlayItem {
+        /// Item key (opaque token returned by browse/search).
         #[arg(long)]
-        offset: Option<u32>,
+        item_key: String,
+        /// Same session key used for the preceding browse/search.
         #[arg(long)]
-        count: Option<u32>,
+        session: String,
+        /// Action preference: auto (default), play-now, queue, start-radio.
+        #[arg(long, default_value = "auto")]
+        action: String,
+        /// Zone name (resolved to zone_or_output_id). Defaults to the `roon zone`
+        /// selection if omitted.
+        #[arg(long)]
+        zone: Option<String>,
+        /// Zone ID (overrides --zone).
+        #[arg(long)]
+        zone_id: Option<String>,
     },
 
     /// Stream zone/output changes as NDJSON to stdout.
@@ -410,34 +461,66 @@ async fn main() -> anyhow::Result<()> {
                     commands::transport::ungroup(core, &outputs).await?;
                 }
                 Command::Browse {
+                    session,
                     hierarchy,
+                    item_key,
+                    pop_all,
+                    pop_levels,
+                    refresh,
+                    offset,
+                    count,
+                    input,
                     zone,
                     zone_id,
-                    item_key,
-                    input,
-                    pop_all,
                 } => {
-                    commands::browse::browse(
+                    let zone_or_output_id =
+                        resolve_zone_or_output_id(core, zone.as_deref(), zone_id.as_deref())
+                            .await?;
+                    commands::browse::run(
                         core,
                         commands::browse::BrowseArgs {
+                            session: &session,
                             hierarchy: hierarchy.as_deref(),
-                            zone_name: zone.as_deref(),
-                            zone_id: zone_id.as_deref(),
                             item_key: item_key.as_deref(),
-                            input: input.as_deref(),
                             pop_all,
-                            json: cli.json,
+                            pop_levels,
+                            refresh,
+                            offset,
+                            count,
+                            input: input.as_deref(),
+                            zone_or_output_id: zone_or_output_id.as_deref(),
                         },
                     )
                     .await?;
                 }
-                Command::Load {
+                Command::Search {
+                    input,
+                    session,
                     hierarchy,
                     offset,
                     count,
                 } => {
-                    commands::browse::load(core, hierarchy.as_deref(), offset, count, cli.json)
+                    commands::search::run(core, &input, &session, &hierarchy, offset, count)
                         .await?;
+                }
+                Command::PlayItem {
+                    item_key,
+                    session,
+                    action,
+                    zone,
+                    zone_id,
+                } => {
+                    let zone_or_output_id =
+                        resolve_zone_or_output_id(core, zone.as_deref(), zone_id.as_deref())
+                            .await?;
+                    commands::play_item::run(
+                        core,
+                        &item_key,
+                        &session,
+                        &action,
+                        zone_or_output_id.as_deref(),
+                    )
+                    .await?;
                 }
                 Command::Watch {
                     seek_hz,
@@ -474,4 +557,22 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Resolve `--zone` / `--zone-id` (or the default zone from config) into a
+/// zone_or_output_id string. Returns `None` when no hint was given AND no
+/// default is configured — callers can then omit `zone_or_output_id` entirely.
+async fn resolve_zone_or_output_id(
+    core: &roon_api::Core,
+    zone: Option<&str>,
+    zone_id: Option<&str>,
+) -> anyhow::Result<Option<String>> {
+    if let Some(id) = zone_id {
+        return Ok(Some(id.to_string()));
+    }
+    if zone.is_some() || config::load().ok().and_then(|c| c.zone).is_some() {
+        let zones = core.transport().get_zones().await?;
+        return Ok(Some(resolve::get_zone_id(&zones, zone, zone_id)?));
+    }
+    Ok(None)
 }

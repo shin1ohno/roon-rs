@@ -13,7 +13,7 @@ pub async fn connect(host: &str, port: u16, timeout_secs: u64) -> Result<RoonCon
     let client = RoonClientBuilder::new(
         "com.roon-rs.cli",
         "roon-rs CLI",
-        "0.4.0",
+        "0.4.1",
         "roon-rs",
         "dev@example.com",
     )

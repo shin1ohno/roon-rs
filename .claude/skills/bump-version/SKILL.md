@@ -28,6 +28,15 @@ Usage: /bump-version <new-version>
 Example: /bump-version 0.2.0
 ```
 
+## Step 0: Working Tree Sanity Check
+
+Before touching any files, run `git status --short`. The working tree should be clean (or contain only changes the user explicitly intends to bundle into the bump commit). If unrelated unstaged or untracked files are present, surface them via AskUserQuestion and let the user decide whether to:
+- **Stash and proceed** (recommended) — `git stash push -u -m "pre-bump"`
+- **Commit them first** as a separate commit
+- **Abort** the bump
+
+Reason: Step 5 rewrites `Cargo.lock` in place. If unrelated edits already touch tracked files, the resulting `git add` is hard to review and easy to mis-stage. Catching this upfront is cheaper than untangling it post-build.
+
 ## Step 1: Detect Current Version
 
 Read `crates/roon-api/Cargo.toml` and extract the `version = "..."` line from `[package]`. This is the reference "current version". If any other crate has a different version (e.g., `roon-mcp` was already bumped independently), warn the user and ask whether to:
@@ -120,6 +129,7 @@ Report to the user:
   display_version to <new-version> in preparation for v<new-version> release.
   ```
 - Remind the user: after commit, tag with `git tag v<new-version> && git push origin v<new-version>` to trigger cargo-dist release + crates.io publish workflows.
+- **CRITICAL warning before tagging**: verify the bump commit is complete and correct *before* running `git tag`. Once the tag is pushed, `git commit --amend` becomes destructive — the published tag keeps pointing at the pre-amend commit, which then becomes orphaned from `main`. cargo-dist will have already built artifacts and `cargo publish` will have already pushed the (possibly broken) version to crates.io — and crates.io is immutable, so recovery requires a fresh patch version (e.g. 0.4.0 → 0.4.1) instead.
 
 Do NOT commit or tag automatically — user reviews first.
 

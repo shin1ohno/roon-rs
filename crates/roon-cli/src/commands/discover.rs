@@ -16,13 +16,7 @@ pub async fn discover(scan_secs: u64, pairing_timeout_secs: u64) -> Result<()> {
     println!("Found {} Roon Core(s):", cores.len());
     for (i, core) in cores.iter().enumerate() {
         let label = core.name.as_deref().unwrap_or("(unnamed)");
-        println!(
-            "  {}) {} — {}:{}",
-            i + 1,
-            label,
-            core.host,
-            core.http_port
-        );
+        println!("  {}) {} — {}:{}", i + 1, label, core.host, core.http_port);
     }
 
     let selected = if cores.len() == 1 {

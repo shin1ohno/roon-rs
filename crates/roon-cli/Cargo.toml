@@ -22,6 +22,7 @@ roon-api = { path = "../roon-api", version = "0.4.1" }
 roon-sood = { path = "../roon-sood", version = "0.4.1" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+time = { version = "0.3", features = ["formatting", "macros"] }
 tokio = { workspace = true }
 toml = "0.8"
 tracing = { workspace = true }

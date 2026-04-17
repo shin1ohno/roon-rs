@@ -222,6 +222,16 @@ enum Command {
         count: Option<u32>,
     },
 
+    /// Stream zone/output changes as NDJSON to stdout.
+    Watch {
+        /// Per-zone seek throttle in Hz (0 = every tick).
+        #[arg(long, default_value_t = 1.0)]
+        seek_hz: f64,
+        /// Suppress the initial snapshot line.
+        #[arg(long)]
+        no_initial: bool,
+    },
+
     /// Fetch an image from Roon Core
     Image {
         /// Image key
@@ -428,6 +438,12 @@ async fn main() -> anyhow::Result<()> {
                 } => {
                     commands::browse::load(core, hierarchy.as_deref(), offset, count, cli.json)
                         .await?;
+                }
+                Command::Watch {
+                    seek_hz,
+                    no_initial,
+                } => {
+                    commands::watch::run(core, seek_hz, no_initial).await?;
                 }
                 Command::Image {
                     image_key,

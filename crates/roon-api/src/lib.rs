@@ -17,7 +17,8 @@ pub mod zone;
 
 pub use self::core::Core;
 pub use browse::{
-    Browse, BrowseItem, BrowseList, BrowseOptions, BrowseResult, LoadOptions, LoadResult,
+    Browse, BrowseItem, BrowseList, BrowseOptions, BrowseResult, InputPrompt, LoadOptions,
+    LoadResult,
 };
 pub use client::{RoonClient, RoonClientBuilder};
 pub use connection::ConnectionState;

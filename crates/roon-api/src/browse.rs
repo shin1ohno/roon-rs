@@ -19,6 +19,8 @@ pub struct BrowseOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pop_levels: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_list: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub set_display_offset: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zone_or_output_id: Option<String>,

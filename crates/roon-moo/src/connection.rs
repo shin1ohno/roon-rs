@@ -232,19 +232,40 @@ async fn dispatch_loop(
     ws_tx: mpsc::Sender<WsMessage>,
     service_handlers: HashMap<String, ServiceHandler>,
 ) {
-    let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(10));
+    // Roon Core closes idle MOO connections after ~0.5-7s with no client
+    // traffic. The WebSocket-level Ping it sent previously was too slow (10s)
+    // and Roon does not count it as liveness — Roon watches for MOO messages.
+    // Fix: send a `com.roonlabs.ping:1/ping` REQUEST every 2s, with the first
+    // tick delayed by 3s so the registry handshake completes first.
+    let ping_period = std::time::Duration::from_secs(2);
+    let mut ping_interval = tokio::time::interval_at(
+        tokio::time::Instant::now() + std::time::Duration::from_secs(3),
+        ping_period,
+    );
     let mut is_alive = true;
+    // Ping request IDs are reserved at the top of the u32 space so they
+    // cannot collide with the 0-counting-up IDs that send_request hands out.
+    let mut ping_req_id: u32 = u32::MAX;
 
     loop {
         tokio::select! {
-            // Heartbeat tick
+            // Heartbeat tick — send a MOO ping to keep the Core happy.
             _ = ping_interval.tick() => {
                 if !is_alive {
-                    tracing::warn!("MOO heartbeat timeout: no pong received");
+                    tracing::warn!("MOO heartbeat timeout: no traffic within window");
                     break;
                 }
                 is_alive = false;
-                if ws_sink.send(WsMessage::Ping(vec![].into())).await.is_err() {
+                let ping = MooMessage {
+                    verb: MooVerb::Request,
+                    name: "com.roonlabs.ping:1/ping".to_string(),
+                    request_id: ping_req_id,
+                    headers: HashMap::new(),
+                    body: None,
+                };
+                ping_req_id = ping_req_id.wrapping_sub(1);
+                let raw = serialize(&ping);
+                if ws_sink.send(WsMessage::Binary(raw.into())).await.is_err() {
                     break;
                 }
             }
@@ -260,6 +281,14 @@ async fn dispatch_loop(
             Some(result) = ws_source.next() => {
                 match result {
                     Ok(WsMessage::Binary(data)) => {
+                        // Any inbound binary proves the connection is live.
+                        is_alive = true;
+                        if data.is_empty() {
+                            // Roon occasionally sends empty binary frames.
+                            // Not an error — do not log at warn!.
+                            tracing::trace!("empty binary frame from server");
+                            continue;
+                        }
                         match parse(&data) {
                             Ok(msg) => {
                                 handle_incoming(
@@ -277,6 +306,14 @@ async fn dispatch_loop(
                     Ok(WsMessage::Pong(_)) => {
                         is_alive = true;
                     }
+                    Ok(WsMessage::Ping(data)) => {
+                        // Mirror any server-originated WS Ping back as Pong.
+                        // Tokio-tungstenite's split streams do NOT auto-pong,
+                        // so we have to.
+                        if ws_sink.send(WsMessage::Pong(data)).await.is_err() {
+                            break;
+                        }
+                    }
                     Ok(WsMessage::Close(_)) => {
                         break;
                     }
@@ -285,7 +322,8 @@ async fn dispatch_loop(
                         break;
                     }
                     _ => {
-                        // Text frames, Ping from server, etc. — ignore
+                        // Text frames and other non-binary messages are not
+                        // part of the MOO wire protocol — ignore.
                     }
                 }
             }

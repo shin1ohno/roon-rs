@@ -334,3 +334,51 @@ async fn test_multiple_concurrent_requests() {
 
     conn.close().await;
 }
+
+/// Client must originate `com.roonlabs.ping:1/ping` requests on its own so
+/// Roon Core's idle-MOO-traffic timeout never fires. The first tick is
+/// delayed by 3s (to let registration finish), then they fire every 2s.
+#[tokio::test]
+async fn test_client_sends_moo_keepalive_ping() {
+    let (ping_tx, mut ping_rx) = tokio::sync::mpsc::channel::<String>(8);
+
+    let addr = mock_ws_server(move |mut sink, mut source| {
+        let ping_tx = ping_tx.clone();
+        async move {
+            while let Some(Ok(msg)) = source.next().await {
+                if let WsMessage::Binary(data) = msg
+                    && let Ok(parsed) = roon_moo::parse(&data)
+                    && parsed.verb == MooVerb::Request
+                {
+                    let _ = ping_tx.send(parsed.name.clone()).await;
+                    // Respond so client's pending table stays tidy even though
+                    // keepalive pings are not registered there.
+                    let resp =
+                        build_moo_response(MooVerb::Complete, "Success", parsed.request_id, None);
+                    let _ = sink.send(WsMessage::Binary(resp.into())).await;
+                }
+            }
+        }
+    })
+    .await;
+
+    let url = format!("ws://{}/api", addr);
+    let conn = MooConnection::connect(&url, HashMap::new()).await.unwrap();
+
+    // Wait up to ~5s for the first ping. The heartbeat is delayed by 3s, so
+    // allowing 6s of slack covers CI jitter without flaking.
+    let first = tokio::time::timeout(std::time::Duration::from_secs(6), async {
+        loop {
+            if let Some(name) = ping_rx.recv().await
+                && name == "com.roonlabs.ping:1/ping"
+            {
+                return name;
+            }
+        }
+    })
+    .await
+    .expect("expected a MOO keepalive ping within 6s");
+    assert_eq!(first, "com.roonlabs.ping:1/ping");
+
+    conn.close().await;
+}

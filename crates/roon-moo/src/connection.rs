@@ -387,8 +387,12 @@ async fn handle_incoming(
                     }
                 }
                 None => {
-                    tracing::warn!(
-                        "CONTINUE for unknown request_id {}: closing connection",
+                    // Not closing the connection — a CONTINUE with no pending
+                    // callback is most likely a server echo arriving after we
+                    // already dropped the receiver. Keepalive pings do not
+                    // register in `pending` at all.
+                    tracing::trace!(
+                        "CONTINUE for unknown request_id {} (ignored)",
                         msg.request_id
                     );
                 }
@@ -406,8 +410,11 @@ async fn handle_incoming(
                     // Sender dropped when it goes out of scope
                 }
                 None => {
-                    tracing::warn!(
-                        "COMPLETE for unknown request_id {}: closing connection",
+                    // Keepalive pings are fired directly from the dispatch
+                    // loop without registering in `pending`; Roon's COMPLETE
+                    // response lands here on every 2s tick. Silent by design.
+                    tracing::trace!(
+                        "COMPLETE for unknown request_id {} (ignored)",
                         msg.request_id
                     );
                 }

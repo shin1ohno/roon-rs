@@ -1,0 +1,22 @@
+# roon-hub config for the Docker Compose deployment.
+# Token path points at the `roon-hub-data` named volume so the Roon pairing
+# survives container rebuilds. MQTT host defaults to the compose service name
+# and is overridden by ROON_HUB_MQTT_HOST if set.
+
+[roon]
+extension_id = "com.roon-rs.hub"
+display_name = "roon-hub"
+publisher = "roon-rs"
+email = "dev@example.com"
+token_path = "/var/lib/roon-hub/tokens.json"
+
+# Direct-connect is configured via ROON_HUB_ROON_HOST / _PORT in compose.yml.
+# Uncomment here if you prefer pinning in the TOML:
+# host = "192.168.1.20"
+# port = 9330
+
+[mqtt]
+host = "mosquitto"
+port = 1883
+client_id = "roon-hub"
+topic_prefix = "roon"

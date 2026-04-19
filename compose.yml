@@ -1,0 +1,58 @@
+# MQTT path for the edge-agent redesign: mosquitto broker + roon-hub adapter.
+# edge-agent itself is NOT deployed via Docker — it needs host BLE
+# (bluez/D-Bus) access and runs natively (systemd/user service) on the host
+# that's physically near the Nuimo.
+#
+# Usage:
+#   docker compose up -d           # start mosquitto + roon-hub
+#   docker compose logs -f roon-hub
+#   docker compose down
+#
+# First-time Roon pairing: after roon-hub starts, approve
+# "roon-hub" in Roon → Settings → Extensions. The token is persisted in the
+# `roon-hub-data` named volume and survives restarts.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: roon-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3 > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  roon-hub:
+    build:
+      context: .
+      dockerfile: crates/roon-hub/Dockerfile
+    container_name: roon-hub
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      ROON_HUB_MQTT_HOST: mosquitto
+      ROON_HUB_MQTT_PORT: "1883"
+      # Direct-connect to the Roon Core. Skip to use SOOD discovery (requires
+      # host networking; uncomment network_mode: host below in that case).
+      ROON_HUB_ROON_HOST: "192.168.1.20"
+      ROON_HUB_ROON_PORT: "9330"
+      RUST_LOG: "info"
+    volumes:
+      - ./deploy/roon-hub/roon-hub.toml:/etc/roon-hub/roon-hub.toml:ro
+      - roon-hub-data:/var/lib/roon-hub
+    # Uncomment for SOOD multicast discovery instead of direct-connect:
+    # network_mode: host
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  roon-hub-data:

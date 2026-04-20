@@ -51,11 +51,18 @@ services:
     environment:
       ROON_HUB_MQTT_HOST: mosquitto
       ROON_HUB_MQTT_PORT: "1883"
-      # Direct-connect to the Roon Core. Uncomment network_mode: host below
-      # to use SOOD discovery instead (UDP multicast).
-      ROON_HUB_ROON_HOST: "192.168.1.20"
+      # Direct-connect to the Roon Core running on the docker host.
+      # `host.docker.internal` resolves via the `extra_hosts` entry below
+      # (needed on Linux; it's implicit on Docker Desktop). This is portable
+      # across hosts whose LAN IPs change — swap for a literal IP only if
+      # the Roon Core lives on a *different* machine than the docker host.
+      # Uncomment `network_mode: host` below to use SOOD discovery instead
+      # (UDP multicast).
+      ROON_HUB_ROON_HOST: "host.docker.internal"
       ROON_HUB_ROON_PORT: "9330"
       RUST_LOG: "info"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./deploy/roon-hub/roon-hub.toml:/etc/roon-hub/roon-hub.toml:ro
       - roon-hub-data:/var/lib/roon-hub

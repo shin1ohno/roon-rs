@@ -20,30 +20,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Publish roon-moo
-        run: cargo publish -p roon-moo --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-moo --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Publish roon-sood
-        run: cargo publish -p roon-sood --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-sood --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io index
         run: sleep 45
 
       - name: Publish roon-api
-        run: cargo publish -p roon-api --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-api --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Wait for crates.io index
         run: sleep 45
 
       - name: Publish roon-cli
-        run: cargo publish -p roon-cli --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Publish roon-hub
-        run: cargo publish -p roon-hub --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-hub --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
         continue-on-error: true
 
       - name: Publish roon-mcp
-        run: cargo publish -p roon-mcp --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p roon-mcp --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

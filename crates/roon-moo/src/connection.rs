@@ -224,6 +224,11 @@ impl MooConnection {
 }
 
 /// Background task that manages the WebSocket connection.
+//
+// clippy::collapsible_match (rust 1.95+) wants the inner `if ws_sink.send(..).await.is_err() { break; }`
+// inside the `Ok(WsMessage::Ping(data))` arm to fold into a match guard. Guards
+// cannot be async, so the rewrite would not compile — suppress at function scope.
+#[allow(clippy::collapsible_match)]
 async fn dispatch_loop(
     mut ws_sink: WsSink,
     mut ws_source: WsSource,

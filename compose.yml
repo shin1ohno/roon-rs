@@ -70,10 +70,10 @@ services:
 
   weave-server:
     build:
-      # Parent directory so the Rust build can see both weave/ and
-      # edge-agent/crates/weave-contracts.
-      context: ..
-      dockerfile: weave/crates/weave-server/Dockerfile
+      # weave-contracts is on crates.io, so the Rust build only needs the
+      # weave repo itself as context.
+      context: ../weave
+      dockerfile: crates/weave-server/Dockerfile
     container_name: weave-server
     restart: unless-stopped
     ports:

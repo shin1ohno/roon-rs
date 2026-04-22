@@ -202,6 +202,24 @@ cargo clippy --workspace --tests
 - [MOO (WebSocket RPC)](docs/protocols/MOO.md)
 - [Implementation plan](docs/PLAN.md)
 
+## Operational Notes
+
+### Latency boundary
+
+- A Roon MOO RPC round-trip depends on Roon Core health. On a LAN-local Core, `Transport::change_volume` buffered-send through ACK is typically <5 ms; when the Core is mid-task (library scan, zone group re-shuffle, network-share reconnect) it can spike past 200 ms.
+- SOOD discovery is multicast-based and reconverges after network changes (DHCP lease renewal, switch reboot). The discovery window is measured in seconds, not milliseconds — this is why `roon-api` caches the last `host:port` in its state store.
+- Roon extension pairing is per-`extension_id`, per-Core. Reconnect after a Core restart goes through MOO re-handshake, which adds 50–500 ms on top of the TCP handshake. Consumers that care about cold-start latency should keep the `FileStateStore` token file on disk so pairing survives restarts.
+
+### Compatibility policy
+
+- `roon-api` is the public Rust SDK. `RoonClient`, `RoonEvent`, `ControlAction`, `Zone`, `Output`, and the `Transport` trait form the API surface.
+- Today's semver rules:
+  - **MINOR** — new fields on `Zone` / `Output` / event payloads (Roon's own protocol evolves this way; serde-side struct additions are additive).
+  - **MAJOR** — new `RoonEvent` or `ControlAction` variant (pattern matches without `_ =>` break at compile time). Add `_ => {}` in downstream match arms if forward-compat matters now; `#[non_exhaustive]` can be revisited later.
+  - **MAJOR** — MOO method signature change, builder-required-field addition.
+- `roon-cli`, `roon-mcp`, and `roon-hub` are **consumers of `roon-api`**, not part of the SDK. They ship on independent version lines. A `roon-api` breaking change does not force a consumer bump — consumers are pinned to a `roon-api` minor in their own `Cargo.toml` and roll forward at their own pace.
+- The `watch` / `browse` / `search` / `play-item` NDJSON output (`"schema": 1`) is a **separate contract** from the Rust SDK, aimed at non-Rust consumers (TUI, Neovim plugin). That contract evolves with its own `schema` number — new fields are additive within a schema version; incompatible changes bump `schema`.
+
 ## License
 
 Licensed under either of

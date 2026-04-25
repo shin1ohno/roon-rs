@@ -1,6 +1,6 @@
 [package]
 name = "roon-mcp"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "MCP server exposing Roon audio system as AI assistant tools"
@@ -16,7 +16,7 @@ dirs-next = "2"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 rmcp = { version = "1.4", features = ["server", "transport-io", "transport-streamable-http-server"] }
-roon-api = { path = "../roon-api", version = "0.5.1" }
+roon-api = { path = "../roon-api", version = "0.5.2" }
 schemars = "0.8"
 serde = { workspace = true }
 serde_json = { workspace = true }

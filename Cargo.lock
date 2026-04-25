@@ -1440,7 +1440,7 @@ dependencies = [
 
 [[package]]
 name = "roon-api"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "dirs-next",
@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "roon-cli"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1477,7 +1477,7 @@ dependencies = [
 
 [[package]]
 name = "roon-hub"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "roon-api",
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "roon-mcp"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "dirs-next",
@@ -1511,7 +1511,7 @@ dependencies = [
 
 [[package]]
 name = "roon-moo"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1526,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "roon-sood"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bytes",
  "proptest",

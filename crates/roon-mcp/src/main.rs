@@ -36,6 +36,17 @@ async fn main() -> anyhow::Result<()> {
         .position(|a| a == "--http-port")
         .and_then(|i| args[i + 1].parse().ok())
         .unwrap_or(8080);
+    let extra_allowed_hosts: Vec<String> = args
+        .iter()
+        .enumerate()
+        .filter_map(|(i, a)| {
+            if a == "--allowed-host" {
+                args.get(i + 1).cloned()
+            } else {
+                None
+            }
+        })
+        .collect();
 
     let token_path = dirs_next::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -51,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let client = RoonClientBuilder::new(
         "com.roon-rs.mcp",
         "roon-rs MCP Server",
-        "0.5.1",
+        "0.5.2",
         "roon-rs",
         "dev@example.com",
     )
@@ -145,13 +156,14 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Starting MCP server (SSE on port {})", http_port);
 
             let bind_addr = format!("0.0.0.0:{}", http_port);
-            let config = StreamableHttpServerConfig::default().with_allowed_hosts([
+            let mut allowed_hosts = vec![
                 "localhost".to_string(),
                 "127.0.0.1".to_string(),
+                "::1".to_string(),
                 format!("0.0.0.0:{}", http_port),
-                format!("localhost:{}", http_port),
-                format!("127.0.0.1:{}", http_port),
-            ]);
+            ];
+            allowed_hosts.extend(extra_allowed_hosts.iter().cloned());
+            let config = StreamableHttpServerConfig::default().with_allowed_hosts(allowed_hosts);
 
             let transport_s = transport_state.clone();
             let browse_s = browse_state.clone();

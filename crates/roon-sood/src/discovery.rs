@@ -84,6 +84,11 @@ async fn bind_recv_socket() -> Result<UdpSocket, crate::SoodError> {
         .set_reuse_address(true)
         .map_err(|e| crate::SoodError::Io(e.to_string()))?;
 
+    #[cfg(target_os = "macos")]
+    socket
+        .set_reuse_port(true)
+        .map_err(|e| crate::SoodError::Io(e.to_string()))?;
+
     socket
         .set_nonblocking(true)
         .map_err(|e| crate::SoodError::Io(e.to_string()))?;

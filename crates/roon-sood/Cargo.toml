@@ -12,7 +12,7 @@ categories = ["multimedia::audio", "network-programming"]
 
 [dependencies]
 bytes = { workspace = true }
-socket2 = "0.5"
+socket2 = { version = "0.5", features = ["all"] }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

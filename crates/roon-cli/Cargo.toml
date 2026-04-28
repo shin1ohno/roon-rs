@@ -1,6 +1,6 @@
 [package]
 name = "roon-cli"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "CLI tool for controlling Roon audio system"
@@ -18,8 +18,8 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 dirs-next = "2"
-roon-api = { path = "../roon-api", version = "0.5.2" }
-roon-sood = { path = "../roon-sood", version = "0.5.2" }
+roon-api = { path = "../roon-api", version = "0.5.3" }
+roon-sood = { path = "../roon-sood", version = "0.5.3" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 time = { version = "0.3", features = ["formatting", "macros"] }

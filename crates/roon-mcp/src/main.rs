@@ -9,6 +9,7 @@ use rmcp::transport::streamable_http_server::{
 use tokio::sync::Mutex;
 
 use roon_api::{FileStateStore, RoonClientBuilder, RoonEvent, Zone, ZoneEvent};
+use roon_mcp::auth::{self, AuthConfig, JwksCache};
 use tools::RoonMcpServer;
 
 #[tokio::main]
@@ -47,6 +48,20 @@ async fn main() -> anyhow::Result<()> {
             }
         })
         .collect();
+
+    let auth_issuer = args
+        .iter()
+        .position(|a| a == "--issuer")
+        .and_then(|i| args.get(i + 1).cloned());
+    let auth_audience = args
+        .iter()
+        .position(|a| a == "--audience")
+        .and_then(|i| args.get(i + 1).cloned());
+    let auth_jwks_url = args
+        .iter()
+        .position(|a| a == "--jwks-url")
+        .and_then(|i| args.get(i + 1).cloned());
+    let require_auth = args.iter().any(|a| a == "--require-auth");
 
     let token_path = dirs_next::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -182,12 +197,76 @@ async fn main() -> anyhow::Result<()> {
                 config,
             );
 
+            let auth_cfg = match (
+                auth_issuer.as_deref(),
+                auth_audience.as_deref(),
+                auth_jwks_url.as_deref(),
+            ) {
+                (Some(iss), Some(aud), Some(url)) => Some(Arc::new(AuthConfig {
+                    issuer: iss.to_string(),
+                    audience: aud.to_string(),
+                    jwks_url: url.to_string(),
+                    require_auth,
+                })),
+                _ => {
+                    if require_auth {
+                        anyhow::bail!("--require-auth needs --issuer, --audience, and --jwks-url");
+                    }
+                    None
+                }
+            };
+            let jwks_cache = auth_cfg
+                .as_ref()
+                .map(|c| Arc::new(JwksCache::new(c.jwks_url.clone())));
+
+            if let Some(cache) = &jwks_cache {
+                let cache_warm = cache.clone();
+                tokio::spawn(async move { auth::warm_cache(&cache_warm).await });
+            }
+
             let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
             tracing::info!("MCP SSE server listening on {}", bind_addr);
 
             let app = hyper::service::service_fn(move |req| {
                 let mut svc = service.clone();
-                async move { tower_service::Service::call(&mut svc, req).await }
+                let cfg = auth_cfg.clone();
+                let cache = jwks_cache.clone();
+                async move {
+                    let path = req.uri().path().to_string();
+                    let method = req.method().clone();
+
+                    // OAuth-protected-resource metadata is served unconditionally.
+                    if path == "/.well-known/oauth-protected-resource"
+                        && let Some(cfg) = cfg.as_ref()
+                    {
+                        return Ok::<_, std::convert::Infallible>(auth::metadata_response(cfg));
+                    }
+
+                    let bypass = method == http::Method::OPTIONS
+                        || path.starts_with("/.well-known/")
+                        || path == "/health";
+
+                    if !bypass
+                        && let (Some(cfg), Some(cache)) = (cfg.as_ref(), cache.as_ref())
+                        && cfg.require_auth
+                    {
+                        let header_value = req
+                            .headers()
+                            .get(http::header::AUTHORIZATION)
+                            .and_then(|v| v.to_str().ok());
+                        match auth::verify_bearer(header_value, cache, cfg).await {
+                            Ok(_claims) => {}
+                            Err(auth::AuthError::Missing) => {
+                                return Ok(auth::unauthorized_response(cfg, false));
+                            }
+                            Err(_other) => {
+                                return Ok(auth::unauthorized_response(cfg, true));
+                            }
+                        }
+                    }
+
+                    tower_service::Service::call(&mut svc, req).await
+                }
             });
 
             loop {

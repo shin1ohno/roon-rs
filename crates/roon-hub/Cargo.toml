@@ -1,6 +1,6 @@
 [package]
 name = "roon-hub"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "MQTT bridge for Roon audio system with per-device zone routing"
@@ -12,7 +12,7 @@ categories = ["multimedia::audio", "command-line-utilities"]
 
 [dependencies]
 anyhow = "1"
-roon-api = { path = "../roon-api", version = "0.5.2" }
+roon-api = { path = "../roon-api", version = "0.5.3" }
 rumqttc = "0.24"
 serde = { workspace = true }
 serde_json = { workspace = true }

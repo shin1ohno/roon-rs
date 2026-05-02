@@ -138,23 +138,30 @@ async fn rejects_wrong_issuer() {
 }
 
 #[tokio::test]
-async fn rejects_wrong_audience() {
+async fn accepts_any_audience_because_aud_check_disabled() {
+    // Audience verification is intentionally disabled (cognee/openmemory
+    // precedent) — Hydra issues tokens without `aud` unless the client
+    // passes RFC 8707 `resource`, which Claude clients do not. Issuer +
+    // RS256 signature verification + ALLOWED_EMAILS at the consent screen
+    // is the effective authorization perimeter.
     let server = mock_jwks("k1").await;
     let cfg = cfg_for(&server);
     let cache = Arc::new(roon_mcp::auth::JwksCache::new(cfg.jwks_url.clone()));
     let claims = TestClaims {
         iss: cfg.issuer.clone(),
-        aud: "https://issuer.test/wrong".into(),
+        aud: "https://other-resource.test/api".into(),
         sub: "user-1".into(),
         exp: now_secs() + 3600,
         iat: now_secs(),
     };
     let token = mint_token(&claims, "k1");
     let header = format!("Bearer {}", token);
-    let err = roon_mcp::auth::verify_bearer(Some(&header), &cache, &cfg)
-        .await
-        .unwrap_err();
-    assert!(matches!(err, roon_mcp::auth::AuthError::WrongAudience));
+    let result = roon_mcp::auth::verify_bearer(Some(&header), &cache, &cfg).await;
+    assert!(
+        result.is_ok(),
+        "expected Ok despite audience mismatch, got {:?}",
+        result
+    );
 }
 
 #[tokio::test]

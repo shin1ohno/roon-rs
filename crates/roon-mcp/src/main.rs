@@ -3,9 +3,7 @@ mod tools;
 use std::sync::Arc;
 
 use rmcp::ServiceExt;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-};
+use rmcp::transport::sse_server::{SseServer, SseServerConfig};
 use tokio::sync::Mutex;
 
 use roon_api::{FileStateStore, RoonClientBuilder, RoonEvent, Zone, ZoneEvent};
@@ -178,14 +176,29 @@ async fn main() -> anyhow::Result<()> {
                 format!("0.0.0.0:{}", http_port),
             ];
             allowed_hosts.extend(extra_allowed_hosts.iter().cloned());
-            let config = StreamableHttpServerConfig::default().with_allowed_hosts(allowed_hosts);
+            // Use the legacy MCP SSE transport (GET /sse → endpoint event +
+            // POST /message?sessionId=…). Anthropic's Claude Desktop /
+            // Claude.ai MCP connector still drives this transport rather
+            // than the newer Streamable HTTP. The endpoint_prefix is set
+            // so the URL inside the `endpoint` event matches the public
+            // path nginx routes here (/roon/).
+            let config = SseServerConfig::default()
+                .with_allowed_hosts(allowed_hosts)
+                // Claude.ai's MCP connector hits the user-supplied URL
+                // verbatim. Convention (matching cognee/openmemory) is
+                // for the user to register `<base>/sse`, so we leave the
+                // default `sse_path = "/sse"` and `post_path = "/message"`
+                // alone. The endpoint event needs `/roon` prepended so
+                // the URL Claude sees survives nginx's `/roon/` proxy
+                // strip.
+                .with_post_path("/messages/")
+                .with_endpoint_prefix("/roon");
 
             let transport_s = transport_state.clone();
             let browse_s = browse_state.clone();
             let zones_s = zones_state.clone();
 
-            let session_manager = Arc::new(LocalSessionManager::default());
-            let service = StreamableHttpService::new(
+            let service = SseServer::new(
                 move || {
                     Ok(RoonMcpServer {
                         transport: transport_s.clone(),
@@ -193,7 +206,6 @@ async fn main() -> anyhow::Result<()> {
                         zones: zones_s.clone(),
                     })
                 },
-                session_manager,
                 config,
             );
 
@@ -234,6 +246,27 @@ async fn main() -> anyhow::Result<()> {
                 async move {
                     let path = req.uri().path().to_string();
                     let method = req.method().clone();
+                    let has_auth = req.headers().contains_key(http::header::AUTHORIZATION);
+                    let accept = req
+                        .headers()
+                        .get(http::header::ACCEPT)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("(none)")
+                        .to_string();
+                    let session_id = req
+                        .headers()
+                        .get("mcp-session-id")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("(none)")
+                        .to_string();
+                    tracing::info!(
+                        "incoming {} {} bearer={} accept={} session={}",
+                        method,
+                        path,
+                        has_auth,
+                        accept,
+                        session_id
+                    );
 
                     // OAuth-protected-resource metadata is served unconditionally.
                     if path == "/.well-known/oauth-protected-resource"

@@ -204,7 +204,13 @@ pub async fn verify_bearer(
 
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_issuer(std::slice::from_ref(&cfg.issuer));
-    validation.set_audience(std::slice::from_ref(&cfg.audience));
+    // Audience verification disabled to match the cognee / openmemory
+    // auth-proxy precedent on this Hydra deployment. Hydra issues tokens
+    // without an `aud` claim unless the client passes RFC 8707 `resource`,
+    // which Claude clients do not currently do. Issuer (Hydra) + RS256
+    // signature verification + ALLOWED_EMAILS at the consent screen is
+    // the effective authorization perimeter for this single-user setup.
+    validation.validate_aud = false;
 
     async fn attempt(
         cache: &Arc<JwksCache>,

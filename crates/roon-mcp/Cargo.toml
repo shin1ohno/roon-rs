@@ -21,7 +21,7 @@ hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 parking_lot = "0.12"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
-rmcp = { version = "1.4", features = ["server", "transport-io", "transport-streamable-http-server"] }
+rmcp = { git = "https://github.com/shin1ohno/rust-sdk.git", branch = "feat/sse-server-transport", features = ["server", "transport-io", "transport-streamable-http-server", "transport-sse-server"] }
 roon-api = { path = "../roon-api", version = "0.5.3" }
 schemars = "0.8"
 serde = { workspace = true }

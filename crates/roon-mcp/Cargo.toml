@@ -1,6 +1,6 @@
 [package]
 name = "roon-mcp"
-version = "0.5.3"
+version = "0.5.5"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "MCP server exposing Roon audio system as AI assistant tools"
@@ -40,7 +40,7 @@ opentelemetry = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "tls", "tls-roots"] }
 tracing-opentelemetry = "0.28"
-tonic = { version = "0.12", default-features = false }
+tonic = { version = "0.12", default-features = false, features = ["transport", "tls", "tls-roots"] }
 
 [dev-dependencies]
 wiremock = "0.6"

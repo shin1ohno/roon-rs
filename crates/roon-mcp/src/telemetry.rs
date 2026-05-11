@@ -18,6 +18,7 @@ use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::TracerProvider;
+use tonic::transport::{Certificate, ClientTlsConfig};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -43,6 +44,20 @@ pub fn init() -> anyhow::Result<()> {
     if let Ok(raw_headers) = std::env::var("OTEL_EXPORTER_OTLP_HEADERS") {
         let metadata = parse_headers(&raw_headers).context("parsing OTEL_EXPORTER_OTLP_HEADERS")?;
         exporter_builder = exporter_builder.with_metadata(metadata);
+    }
+
+    // OTEL_EXPORTER_OTLP_CERTIFICATE — canonical OTel SDK env for the PEM
+    // CA bundle the exporter should trust. Needed because the home APM
+    // Server uses an internal CA (es_ca) not present in OS trust stores,
+    // and `tls-roots` only seeds native roots. Without this the gRPC
+    // client gets `TLS handshake error: EOF` and BatchSpanProcessor
+    // silently drops the batch.
+    if let Ok(cert_path) = std::env::var("OTEL_EXPORTER_OTLP_CERTIFICATE") {
+        let pem = std::fs::read(&cert_path)
+            .with_context(|| format!("reading OTEL_EXPORTER_OTLP_CERTIFICATE={cert_path}"))?;
+        let ca = Certificate::from_pem(pem);
+        let tls = ClientTlsConfig::new().ca_certificate(ca);
+        exporter_builder = exporter_builder.with_tls_config(tls);
     }
 
     let exporter = exporter_builder

@@ -30,7 +30,17 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tower-service = "0.3"
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+# OpenTelemetry — OTLP gRPC export to the standalone apm-server LXC.
+# Same shape as the weave-server companion (weave PR #70). Gated by
+# OTEL_EXPORTER_OTLP_ENDPOINT at runtime so unit tests / stdio-mode
+# invocations without APM keep working.
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "tls", "tls-roots"] }
+tracing-opentelemetry = "0.28"
+tonic = { version = "0.12", default-features = false }
 
 [dev-dependencies]
 wiremock = "0.6"

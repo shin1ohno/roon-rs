@@ -1,3 +1,4 @@
+mod telemetry;
 mod tools;
 
 use std::sync::Arc;
@@ -12,9 +13,7 @@ use tools::RoonMcpServer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .init();
+    telemetry::init()?;
 
     let args: Vec<String> = std::env::args().collect();
     let host = args
@@ -325,5 +324,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    telemetry::shutdown();
     Ok(())
 }

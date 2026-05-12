@@ -6,6 +6,7 @@ use std::sync::Arc;
 use rmcp::ServiceExt;
 use rmcp::transport::sse_server::{SseServer, SseServerConfig};
 use tokio::sync::Mutex;
+use tracing::Instrument;
 
 use roon_api::{FileStateStore, RoonClientBuilder, RoonEvent, Zone, ZoneEvent};
 use roon_mcp::auth::{self, AuthConfig, JwksCache};
@@ -242,9 +243,23 @@ async fn main() -> anyhow::Result<()> {
                 let mut svc = service.clone();
                 let cfg = auth_cfg.clone();
                 let cache = jwks_cache.clone();
+                // Build the request span up-front so OTel sees every HTTP
+                // request as a distinct transaction (the tracing-opentelemetry
+                // layer in telemetry.rs converts tracing spans -> OTLP spans).
+                // otel.name uses the OpenTelemetry HTTP server semantic
+                // convention "<METHOD> <route>"; without an axum-style routing
+                // tree we use the full path. INFO level matches the
+                // EnvFilter default so the span passes through unfiltered.
+                let method = req.method().clone();
+                let path = req.uri().path().to_string();
+                let span = tracing::info_span!(
+                    "http.request",
+                    otel.name = %format!("{} {}", method, path),
+                    otel.kind = "server",
+                    http.method = %method,
+                    http.target = %path,
+                );
                 async move {
-                    let path = req.uri().path().to_string();
-                    let method = req.method().clone();
                     let has_auth = req.headers().contains_key(http::header::AUTHORIZATION);
                     let accept = req
                         .headers()
@@ -299,6 +314,7 @@ async fn main() -> anyhow::Result<()> {
 
                     tower_service::Service::call(&mut svc, req).await
                 }
+                .instrument(span)
             });
 
             loop {

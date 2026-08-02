@@ -540,6 +540,58 @@ Request-Id: 14
 
 ```
 
+### Queue Subscription
+
+The play queue is a separate subscription from zones. `max_item_count` caps how
+many items the core sends and is a window on the front of the queue — there is
+no way to request a later page. Zone and output subscriptions use the fixed
+keys 0 and 1, so queue keys must be allocated above them; several queues can be
+subscribed at once, one per zone.
+
+```
+MOO/1 REQUEST com.roonlabs.transport:2/subscribe_queue
+Request-Id: 21
+Content-Length: 76
+Content-Type: application/json
+
+{"subscription_key":2,"zone_or_output_id":"16016...","max_item_count":100}
+```
+
+Server sends the current contents:
+```
+MOO/1 CONTINUE Subscribed
+Request-Id: 21
+Content-Length: 4210
+Content-Type: application/json
+
+{"items":[{"queue_item_id":1001,"length":240,"image_key":"...","one_line":{"line1":"Track - Artist"}}]}
+```
+
+Subsequent edits arrive as deltas, to be applied in order. Only `insert` and
+`remove` have been observed:
+```
+MOO/1 CONTINUE Changed
+Request-Id: 21
+Content-Length: 214
+Content-Type: application/json
+
+{"changes":[{"operation":"remove","index":0,"count":1},
+            {"operation":"insert","index":9,"items":[{"queue_item_id":1042,...}]}]}
+```
+
+Jump to an item without disturbing the rest of the queue:
+```
+MOO/1 REQUEST com.roonlabs.transport:2/play_from_here
+Request-Id: 22
+Content-Length: 58
+Content-Type: application/json
+
+{"zone_or_output_id":"16016...","queue_item_id":1042}
+```
+
+Note that `play_from_here` is the only queue *mutation* the extension API
+exposes; there is no add, remove, reorder or clear.
+
 ### Full Registration Handshake
 
 ```

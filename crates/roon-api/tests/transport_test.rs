@@ -2,7 +2,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
-use roon_api::{ControlAction, MemoryTokenStore, RoonClientBuilder, Zone, ZoneEvent};
+use roon_api::{
+    ControlAction, MemoryTokenStore, QueueEvent, QueueOperation, RoonClientBuilder, Zone, ZoneEvent,
+};
 
 fn build_moo_response(
     verb: &str,
@@ -123,6 +125,55 @@ async fn mock_roon_core_with_transport() -> std::net::SocketAddr {
                         );
                         sink.send(WsMessage::Binary(update.into())).await.unwrap();
                     } else if name == "com.roonlabs.transport:2/control" {
+                        let resp =
+                            build_moo_response("COMPLETE", "Success", parsed.request_id, None);
+                        sink.send(WsMessage::Binary(resp.into())).await.unwrap();
+                    } else if name == "com.roonlabs.transport:2/subscribe_queue" {
+                        let resp = build_moo_response(
+                            "CONTINUE",
+                            "Subscribed",
+                            parsed.request_id,
+                            Some(serde_json::json!({
+                                "items": [{
+                                    "queue_item_id": 1001,
+                                    "length": 240,
+                                    "image_key": "img-1",
+                                    "one_line": {"line1": "First Track"}
+                                }, {
+                                    "queue_item_id": 1002,
+                                    "length": 180,
+                                    "one_line": {"line1": "Second Track"}
+                                }]
+                            })),
+                        );
+                        sink.send(WsMessage::Binary(resp.into())).await.unwrap();
+
+                        // Then a delta: drop the head, append a new tail.
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        let update = build_moo_response(
+                            "CONTINUE",
+                            "Changed",
+                            parsed.request_id,
+                            Some(serde_json::json!({
+                                "changes": [{
+                                    "operation": "remove",
+                                    "index": 0,
+                                    "count": 1
+                                }, {
+                                    "operation": "insert",
+                                    "index": 1,
+                                    "items": [{
+                                        "queue_item_id": 1003,
+                                        "length": 200,
+                                        "one_line": {"line1": "Third Track"}
+                                    }]
+                                }]
+                            })),
+                        );
+                        sink.send(WsMessage::Binary(update.into())).await.unwrap();
+                    } else if name == "com.roonlabs.transport:2/unsubscribe_queue"
+                        || name == "com.roonlabs.transport:2/play_from_here"
+                    {
                         let resp =
                             build_moo_response("COMPLETE", "Success", parsed.request_id, None);
                         sink.send(WsMessage::Binary(resp.into())).await.unwrap();
@@ -263,4 +314,105 @@ async fn test_zone_deserialization() {
     assert_eq!(np.one_line.line1, "Song Title");
     assert_eq!(np.length.unwrap(), 300.5);
     assert_eq!(zone.queue_items_remaining.unwrap(), 5);
+}
+
+#[tokio::test]
+async fn test_subscribe_queue_initial_and_changed() {
+    let addr = mock_roon_core_with_transport().await;
+
+    let client = RoonClientBuilder::new("com.test.ext", "Test", "1.0", "Test", "test@test.com")
+        .token_store(MemoryTokenStore::new())
+        .require_transport()
+        .build()
+        .unwrap();
+
+    let core = client
+        .connect(&addr.ip().to_string(), addr.port())
+        .await
+        .unwrap();
+    let transport = core.transport();
+
+    let (key, mut queue_rx) = transport.subscribe_queue("zone-1", 100).await.unwrap();
+    // Zones and outputs hold keys 0 and 1, so queues must not reuse them.
+    assert!(key >= 2, "queue key {key} collides with zone/output keys");
+
+    let event = tokio::time::timeout(std::time::Duration::from_secs(2), queue_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    match event {
+        QueueEvent::Subscribed(items) => {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].queue_item_id, 1001);
+            assert_eq!(items[0].one_line.line1, "First Track");
+            assert_eq!(items[0].length.unwrap(), 240.0);
+            assert_eq!(items[0].image_key.as_deref(), Some("img-1"));
+            // Absent optional fields must not fail the whole payload.
+            assert_eq!(items[1].queue_item_id, 1002);
+            assert!(items[1].image_key.is_none());
+        }
+        other => panic!("expected Subscribed, got {:?}", other),
+    }
+
+    let event = tokio::time::timeout(std::time::Duration::from_secs(2), queue_rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    match event {
+        QueueEvent::Changed(changes) => {
+            assert_eq!(changes.len(), 2);
+            assert_eq!(changes[0].operation, QueueOperation::Remove);
+            assert_eq!(changes[0].index, 0);
+            assert_eq!(changes[0].count, Some(1));
+            assert!(changes[0].items.is_none());
+
+            assert_eq!(changes[1].operation, QueueOperation::Insert);
+            assert_eq!(changes[1].index, 1);
+            let inserted = changes[1].items.as_ref().unwrap();
+            assert_eq!(inserted.len(), 1);
+            assert_eq!(inserted[0].queue_item_id, 1003);
+        }
+        other => panic!("expected Changed, got {:?}", other),
+    }
+
+    transport.unsubscribe_queue(key).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_play_from_here() {
+    let addr = mock_roon_core_with_transport().await;
+
+    let client = RoonClientBuilder::new("com.test.ext", "Test", "1.0", "Test", "test@test.com")
+        .token_store(MemoryTokenStore::new())
+        .build()
+        .unwrap();
+
+    let core = client
+        .connect(&addr.ip().to_string(), addr.port())
+        .await
+        .unwrap();
+
+    core.transport()
+        .play_from_here("zone-1", 1002)
+        .await
+        .unwrap();
+}
+
+#[test]
+fn test_queue_change_deserialization() {
+    let json = serde_json::json!({
+        "operation": "insert",
+        "index": 0,
+        "items": []
+    });
+    let change: roon_api::QueueChange = serde_json::from_value(json).unwrap();
+    assert_eq!(change.operation, QueueOperation::Insert);
+
+    // An operation the crate does not model must deserialize, not error.
+    let json = serde_json::json!({"operation": "reorder", "index": 3});
+    let change: roon_api::QueueChange = serde_json::from_value(json).unwrap();
+    assert_eq!(change.operation, QueueOperation::Unknown);
+    assert_eq!(change.index, 3);
 }

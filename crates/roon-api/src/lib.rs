@@ -38,4 +38,4 @@ pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,
 };
 pub use volume_control::{VolumeControlDef, VolumeControlService, VolumeRequest};
-pub use zone::{NowPlaying, PlayState, Zone, ZoneSeek, ZoneSettings};
+pub use zone::{LoopMode, NowPlaying, PlayState, Zone, ZoneSeek, ZoneSettings};

@@ -1,6 +1,6 @@
 [package]
 name = "roon-mcp"
-version = "0.5.6"
+version = "0.5.7"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "MCP server exposing Roon audio system as AI assistant tools"

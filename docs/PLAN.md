@@ -71,7 +71,7 @@ roon-rs/
 
 ### Phase 5: roon-api SDK — Transport Service
 
-- [x] Transport (subscribe_zones, subscribe_outputs)
+- [x] Transport (subscribe_zones, subscribe_outputs, subscribe_queue)
 - [x] Zone, Output, NowPlaying, PlayState types
 - [x] Control commands (play, pause, stop, next, previous, seek)
 - [x] Volume control (change_volume, mute)
@@ -110,6 +110,7 @@ roon-rs/
 - [x] Discovery: localhost detection, interface polling (5s), paired query suppression
 - [x] Status service (com.roonlabs.status:1): set_status with subscriber broadcast
 - [x] Image service: get_image via HTTP, image_url builder
+- [x] Queue: subscribe_queue/unsubscribe_queue with incremental changes, play_from_here
 - [x] Volume Control service (com.roonlabs.volume:1): set_volume, set_mute callbacks
 - [x] Source Control service (com.roonlabs.source_control:1): standby, convenience_switch callbacks
 - [x] Builder: provide_service for user-defined provided services

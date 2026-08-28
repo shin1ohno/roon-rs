@@ -7,6 +7,7 @@ mod event;
 pub mod image;
 pub mod output;
 pub mod pairing;
+pub mod queue;
 pub(crate) mod registry;
 pub mod source_control;
 pub mod status;
@@ -27,6 +28,7 @@ pub use event::RoonEvent;
 pub use image::{ImageOptions, ImageService};
 pub use output::{Output, SourceControl, Volume};
 pub use pairing::PairingState;
+pub use queue::{QueueChange, QueueEvent, QueueItem, QueueOperation};
 pub use source_control::{SourceControlDef, SourceControlService, SourceRequest};
 pub use status::StatusService;
 pub use token::{
@@ -36,4 +38,4 @@ pub use transport::{
     ControlAction, MuteAction, OutputEvent, SeekMode, Transport, VolumeMode, ZoneEvent,
 };
 pub use volume_control::{VolumeControlDef, VolumeControlService, VolumeRequest};
-pub use zone::{NowPlaying, PlayState, Zone, ZoneSeek, ZoneSettings};
+pub use zone::{LoopMode, NowPlaying, PlayState, Zone, ZoneSeek, ZoneSettings};

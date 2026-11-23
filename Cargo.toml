@@ -35,6 +35,14 @@ windows-archive = ".zip"
 # The archive format to use for non-windows builds (defaults .tar.xz)
 unix-archive = ".tar.gz"
 
+# Pin the actions dist writes into .github/workflows/release.yml to commit
+# SHAs (supply-chain baseline). Dependabot does not edit release.yml, so bump
+# these by hand and re-run `dist generate` with the same dist version.
+[workspace.metadata.dist.github-action-commits]
+"actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803" # v6.1.0
+"actions/upload-artifact" = "b7c566a772e6b6bfb58ed0dc250532a479d7789f" # v6.0.0
+"actions/download-artifact" = "37930b1c2abaa49bbe596cd826c3c89aef350131" # v7.0.0
+
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"

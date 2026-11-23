@@ -7,6 +7,8 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -14,36 +16,78 @@ jobs:
   publish:
     name: Publish crates in dependency order
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+      # No build cache in this job: a cache written by a PR build must not
+      # flow into a published crate.
 
-      - name: Publish roon-moo
-        run: cargo publish -p roon-moo --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
+      # Each crate is published only when its version is not on crates.io
+      # yet, and any other publish error fails the job. After a publish the
+      # step waits until the sparse index serves the new version, because
+      # the next crate in the list may depend on it.
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
 
-      - name: Publish roon-sood
-        run: cargo publish -p roon-sood --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
+          index_path() {
+            local n="${1,,}"
+            case ${#n} in
+              1) echo "1/$n" ;;
+              2) echo "2/$n" ;;
+              3) echo "3/${n:0:1}/$n" ;;
+              *) echo "${n:0:2}/${n:2:2}/$n" ;;
+            esac
+          }
 
-      - name: Wait for crates.io index
-        run: sleep 45
+          # Exit status 0 when <crate> <version> is in the crates.io index,
+          # 1 when the crate or the version is absent. Any other HTTP status
+          # aborts the job rather than guessing.
+          published() {
+            local crate=$1 version=$2 body status
+            body=$(mktemp)
+            status=$(curl -sS -o "$body" -w '%{http_code}' "https://index.crates.io/$(index_path "$crate")")
+            case $status in
+              200) jq -r '.vers' "$body" | grep -Fxq "$version" ;;
+              404) return 1 ;;
+              *)
+                echo "::error::index.crates.io returned HTTP $status for $crate"
+                exit 1
+                ;;
+            esac
+          }
 
-      - name: Publish roon-api
-        run: cargo publish -p roon-api --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
-
-      - name: Wait for crates.io index
-        run: sleep 45
-
-      - name: Publish roon-cli
-        run: cargo publish -p roon-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
-
-      - name: Publish roon-hub
-        run: cargo publish -p roon-hub --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        continue-on-error: true
-
-      - name: Publish roon-mcp
-        run: cargo publish -p roon-mcp --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          metadata=$(cargo metadata --no-deps --format-version 1)
+          for crate in roon-moo roon-sood roon-api roon-cli roon-hub roon-mcp; do
+            version=$(jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version' <<< "$metadata")
+            if [ -z "$version" ]; then
+              echo "::error::$crate is not a workspace package"
+              exit 1
+            fi
+            if published "$crate" "$version"; then
+              echo "$crate $version is already on crates.io; skipping"
+              continue
+            fi
+            echo "::group::cargo publish -p $crate ($version)"
+            cargo publish -p "$crate"
+            echo "::endgroup::"
+            for _ in $(seq 1 30); do
+              if published "$crate" "$version"; then
+                break
+              fi
+              sleep 10
+            done
+            if ! published "$crate" "$version"; then
+              echo "::error::$crate $version did not appear in the crates.io index within 5 minutes"
+              exit 1
+            fi
+          done
